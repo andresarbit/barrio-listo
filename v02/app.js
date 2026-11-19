@@ -1,56 +1,12 @@
 import {
-  TIPOS, GRUPOS, CATEGORIAS, generarCompras, PROTOCOLOS, NUMEROS, ROLES_PLAN,
-  TIPOS_MARCADOR, BUSQUEDAS_CERCA, CURSO, TUTORIALES
+  TIPOS, GRUPOS, OBSERVACIONES, CATEGORIAS, ELEMENTOS, INICIALES, MIGRACION, PROTOCOLOS, NUMEROS, ROLES_PLAN,
+  TIPOS_MARCADOR, BUSQUEDAS_CERCA, CURSO, TUTORIALES, GRUPOS_RED, MENSAJES
 } from './datos.js';
 
 const CLAVE = 'barrio-listo-v1';
 const vista = document.getElementById('vista');
 const dialogo = document.getElementById('dialogo');
 const linterna = document.getElementById('linterna');
-const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-/* =========================================================
-   Estado: todo se guarda en este teléfono (localStorage)
-   ========================================================= */
-function base() {
-  return {
-    version: 1,
-    hogar: { configurado: false, meta: 3, zona: { inundable: false, sismica: false, calor: false, incendios: false }, mascotas: false },
-    integrantes: [],
-    checks: {},
-    compras: {},
-    plan: { encuentro: '', encuentroAlt: '', rutas: '', roles: {}, contactos: [] },
-    zona: { marcadores: [], centro: null },
-    revision: { ultima: null }
-  };
-}
-function normalizar(d) {
-  const b = base();
-  if (!d || typeof d !== 'object') return b;
-  for (const k of Object.keys(b)) {
-    if (d[k] === undefined || d[k] === null) d[k] = b[k];
-    else if (typeof b[k] === 'object' && !Array.isArray(b[k])) d[k] = Object.assign(b[k], d[k]);
-  }
-  d.hogar.zona = Object.assign(base().hogar.zona, d.hogar.zona || {});
-  if (!Array.isArray(d.integrantes)) d.integrantes = [];
-  if (!Array.isArray(d.plan.contactos)) d.plan.contactos = [];
-  if (!d.plan.roles || typeof d.plan.roles !== 'object') d.plan.roles = {};
-  if (!Array.isArray(d.zona.marcadores)) d.zona.marcadores = [];
-  return d;
-}
-function cargar() {
-  try {
-    const t = localStorage.getItem(CLAVE);
-    return t ? normalizar(JSON.parse(t)) : base();
-  } catch (e) {
-    return base();
-  }
-}
-let estado = cargar();
-function guardar() {
-  try { localStorage.setItem(CLAVE, JSON.stringify(estado)); }
-  catch (e) { aviso('No se pudo guardar en este teléfono'); }
-}
 
 /* =========================================================
    Utilidades
@@ -58,13 +14,11 @@ function guardar() {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const dos = (n) => String(n).padStart(2, '0');
-function hoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
-function sumarMeses(iso, m) {
-  const [a, me, d] = iso.split('-').map(Number);
-  const f = new Date(a, me - 1 + m, d);
-  return `${f.getFullYear()}-${dos(f.getMonth() + 1)}-${dos(f.getDate())}`;
-}
-const fechaCorta = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
+const iso = (f) => `${f.getFullYear()}-${dos(f.getMonth() + 1)}-${dos(f.getDate())}`;
+const hoy = () => iso(new Date());
+function sumarMeses(fecha, m) { const [a, me, d] = fecha.split('-').map(Number); return iso(new Date(a, me - 1 + m, d)); }
+function sumarDias(fecha, n) { const [a, me, d] = fecha.split('-').map(Number); return iso(new Date(a, me - 1, d + n)); }
+const fechaCorta = (f) => { const [a, m, d] = f.split('-'); return `${d}/${m}/${a}`; };
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 const pesos = (n) => '$' + Math.round(n).toLocaleString('es-AR');
 function setRuta(obj, ruta, valor) {
@@ -84,11 +38,7 @@ function monedas(r) {
   const n = r >= 1 ? 3 : Math.floor(r * 3);
   return `<span class="leds" role="img" aria-label="${n} de 3 luces encendidas">${[0, 1, 2].map((i) => `<i class="led${i < n ? ' on' : ''}"></i>`).join('')}</span>`;
 }
-function barraSeg(r) {
-  const n = Math.round(r * 20);
-  return `<div class="barra-seg" aria-hidden="true">${Array.from({ length: 20 }, (_, i) => `<i class="${i < n ? 'lleno' : ''}"></i>`).join('')}</div>`;
-}
-// Botón de dos toques para acciones que borran algo.
+// Botón de dos toques para lo que borra algo.
 function confirmar(b, accion) {
   if (b.dataset.armado) { accion(); return; }
   const original = b.textContent;
@@ -96,80 +46,174 @@ function confirmar(b, accion) {
   b.textContent = '¿Seguro? Tocá de nuevo';
   setTimeout(() => { if (b.isConnected) { delete b.dataset.armado; b.textContent = original; } }, 3500);
 }
+function abrirExterno(url) {
+  if (url.startsWith('http')) window.open(url, '_blank', 'noopener');
+  else window.location.href = url;
+}
+
+/* =========================================================
+   Estado: todo queda en este teléfono (localStorage).
+   Se comparte con la V01, que usa la misma clave.
+   ========================================================= */
+function base() {
+  return {
+    version: 2,
+    hogar: {
+      configurado: false, mascotas: false,
+      direccion: '', entreCalles: '', barrio: '', localidad: '', provincia: '', referencia: '',
+      meta: 3, zona: { inundable: false, sismica: false, calor: false, incendios: false }
+    },
+    integrantes: [],
+    checks: {},
+    inventario: {},
+    extras: [],
+    compras: {},
+    plan: { encuentro: '', encuentroAlt: '', rutas: '', roles: {}, contactos: [] },
+    red: [],
+    zona: { marcadores: [], centro: null },
+    revision: { ultima: null }
+  };
+}
+function normalizar(d) {
+  const b = base();
+  if (!d || typeof d !== 'object') return b;
+  for (const k of Object.keys(b)) {
+    if (d[k] === undefined || d[k] === null) d[k] = b[k];
+    else if (typeof b[k] === 'object' && !Array.isArray(b[k])) d[k] = Object.assign(b[k], d[k]);
+  }
+  d.hogar.zona = Object.assign(base().hogar.zona, d.hogar.zona || {});
+  for (const k of ['integrantes', 'extras', 'red']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!Array.isArray(d.plan.contactos)) d.plan.contactos = [];
+  if (!d.plan.roles || typeof d.plan.roles !== 'object') d.plan.roles = {};
+  if (!Array.isArray(d.zona.marcadores)) d.zona.marcadores = [];
+  for (const i of d.integrantes) {
+    if (!Array.isArray(i.obs)) i.obs = [];
+    if (i.edad === undefined || i.edad === null) i.edad = '';
+    if (i.electro && !i.obs.includes('electro')) i.obs.push('electro');
+  }
+  if (!d.migradoV02) {
+    for (const [viejo, nuevo] of Object.entries(MIGRACION)) {
+      const ch = d.checks[viejo];
+      if (ch && ch.hecho && !d.inventario[nuevo]) d.inventario[nuevo] = { tengo: true, cantidad: null, vence: null, desde: ch.fecha || null };
+    }
+    for (const ct of d.plan.contactos) {
+      if (!d.red.some((r) => r.id === ct.id)) d.red.push({ id: ct.id || uid(), nombre: ct.nombre || '', tel: ct.tel || '', grupo: 'otros', barrio: '', nota: ct.rel || '' });
+    }
+    d.migradoV02 = true;
+  }
+  return d;
+}
+function cargar() {
+  try { const t = localStorage.getItem(CLAVE); return normalizar(t ? JSON.parse(t) : null); }
+  catch (e) { return base(); }
+}
+let estado = cargar();
+function guardar() {
+  try { localStorage.setItem(CLAVE, JSON.stringify(estado)); }
+  catch (e) { aviso('No se pudo guardar en este teléfono'); }
+}
 
 /* =========================================================
    Cálculos
    ========================================================= */
 const personas = () => estado.integrantes.length;
+const nombreObs = (id) => OBSERVACIONES.find((o) => o.id === id)?.nombre || id;
 function condiciones() {
-  const z = estado.hogar.zona;
+  const ints = estado.integrantes;
   return {
-    electro: estado.integrantes.some((i) => i.electro),
-    medicacion: estado.integrantes.some((i) => (i.medicacion || '').trim()),
-    bebes: estado.integrantes.some((i) => i.tipo === 'bebe'),
-    mascotas: !!estado.hogar.mascotas,
-    sismica: !!z.sismica, inundable: !!z.inundable, calor: !!z.calor, incendios: !!z.incendios
+    electro: ints.some((i) => i.obs.includes('electro')),
+    medicacion: ints.some((i) => (i.medicacion || '').trim() || i.obs.includes('medicacion')),
+    bebes: ints.some((i) => i.tipo === 'bebe'),
+    mascotas: !!estado.hogar.mascotas
   };
 }
-function itemsDe(cat) { const c = condiciones(); return cat.items.filter((it) => !it.soloSi || c[it.soloSi]); }
-const cuenta = (it) => estado.hogar.meta === 14 || it.etapa !== '14d';
-function progresoCat(cat) {
-  const its = itemsDe(cat).filter(cuenta);
-  const n = its.filter((it) => estado.checks[it.id]?.hecho).length;
-  return { n, total: its.length, r: its.length ? n / its.length : 0 };
+function elementos() {
+  const c = condiciones();
+  return [
+    ...ELEMENTOS.filter((e) => !e.soloSi || c[e.soloSi]),
+    ...estado.extras.map((x) => ({ ...x, unidad: x.unidad || 'u.', vence: true, extra: true }))
+  ];
 }
-function progresoListas() {
-  let n = 0, total = 0;
-  for (const c of CATEGORIAS) { const p = progresoCat(c); n += p.n; total += p.total; }
-  return { n, total, r: total ? n / total : 0 };
-}
-function vencidos() {
-  const h = hoy(), out = [];
-  for (const cat of CATEGORIAS) {
-    for (const it of itemsDe(cat)) {
-      const ch = estado.checks[it.id];
-      if (it.rotar && ch?.hecho && ch.fecha) {
-        const vence = sumarMeses(ch.fecha, it.rotar);
-        if (vence <= h) out.push({ it, cat, vence });
-      }
-    }
+const registro = (id) => estado.inventario[id] || {};
+function estadoElemento(e) {
+  const r = registro(e.id);
+  if (!r.tengo || e.saber) return { tipo: r.tengo ? 'ok' : 'falta', texto: '' };
+  const h = hoy();
+  if (r.vence) {
+    if (r.vence <= h) return { tipo: 'renovar', texto: `Venció el ${fechaCorta(r.vence)}` };
+    if (r.vence <= sumarDias(h, 30)) return { tipo: 'pronto', texto: `Vence el ${fechaCorta(r.vence)}` };
+    return { tipo: 'ok', texto: `Vence el ${fechaCorta(r.vence)}` };
   }
-  return out;
+  if (e.revisar && r.desde) {
+    const rev = sumarMeses(r.desde, e.revisar);
+    if (rev <= h) return { tipo: 'renovar', texto: 'Toca revisarlo' };
+    return { tipo: 'ok', texto: `Revisarlo el ${fechaCorta(rev)}` };
+  }
+  return { tipo: 'ok', texto: '' };
 }
-function listaCompras() {
-  return generarCompras(personas(), condiciones()).filter((it) => estado.hogar.meta === 14 || it.etapa === '72h');
+function progresoDe(lista) {
+  const n = lista.filter((e) => registro(e.id).tengo).length;
+  return { n, total: lista.length, r: lista.length ? n / lista.length : 0 };
+}
+const progresoCat = (catId) => progresoDe(elementos().filter((e) => e.cat === catId));
+const progresoInventario = () => progresoDe(elementos());
+const paraRenovar = () => elementos().filter((e) => !e.saber && estadoElemento(e).tipo === 'renovar');
+const faltantes = () => elementos().filter((e) => !e.saber && (!registro(e.id).tengo || estadoElemento(e).tipo === 'renovar'));
+function hogarIniciado() {
+  const h = estado.hogar;
+  return personas() > 0 || !!(h.direccion || h.barrio) || INICIALES.some((id) => registro(id).tengo);
 }
 function progresoModulos() {
-  const p = personas();
-  const compras = listaCompras();
-  const comprados = compras.filter((c) => estado.compras[c.id]?.comprado).length;
-  const pl = estado.plan;
+  const p = personas(), h = estado.hogar, pl = estado.plan, ms = estado.zona.marcadores;
+  const comprables = elementos().filter((e) => !e.saber);
   const roles = Object.values(pl.roles).filter(Boolean).length;
-  const ms = estado.zona.marcadores;
+  const grupos = new Set(estado.red.map((r) => r.grupo)).size;
   return {
-    necesidades: estado.hogar.configurado && p ? 1 : 0,
-    familia: p ? estado.integrantes.filter((i) => i.grupo && i.contacto).length / p : 0,
-    checklists: progresoListas().r,
-    compras: compras.length ? comprados / compras.length : 0,
-    plan: [pl.encuentro, pl.encuentroAlt, pl.rutas, roles >= 2, pl.contactos.length >= 1].filter(Boolean).length / 5,
+    hogar: [p > 0, !!(h.direccion || h.barrio), INICIALES.some((id) => registro(id).tengo)].filter(Boolean).length / 3,
+    familia: p ? estado.integrantes.reduce((s, i) => s + [i.edad !== '', i.grupo, i.contacto].filter(Boolean).length / 3, 0) / p : 0,
+    inventario: progresoInventario().r,
+    compras: comprables.length ? comprables.filter((e) => registro(e.id).tengo && estadoElemento(e).tipo !== 'renovar').length / comprables.length : 0,
+    plan: [pl.encuentro, pl.encuentroAlt, pl.rutas, roles >= 2].filter(Boolean).length / 4,
+    red: [estado.red.length >= 1, estado.red.length >= 3, grupos >= 2].filter(Boolean).length / 3,
     zona: [ms.some((m) => m.tipo === 'casa'), ms.some((m) => m.tipo === 'encuentro'), ms.some((m) => m.tipo === 'riesgo' || m.tipo === 'servicio')].filter(Boolean).length / 3
   };
 }
+function direccionTexto() {
+  const h = estado.hogar;
+  return [h.direccion, h.entreCalles ? `entre ${h.entreCalles}` : '', h.barrio, h.localidad, h.provincia].filter(Boolean).join(', ');
+}
+function linkMapsDireccion() {
+  const h = estado.hogar;
+  const q = [h.direccion, h.barrio, h.localidad, h.provincia].filter(Boolean).join(', ');
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : '';
+}
+function textoMensaje(id) {
+  const m = MENSAJES.find((x) => x.id === id) || MENSAJES[0];
+  return m.texto.replace('{direccion}', direccionTexto() || 'casa').replace('{encuentro}', estado.plan.encuentro || 'el punto de encuentro');
+}
+// Teléfono para WhatsApp: formato internacional argentino (54 9 + área + número, sin 0 ni 15).
+function telWhatsapp(tel) {
+  let d = String(tel || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('54')) return d;
+  d = d.replace(/^0/, '');
+  if (d.length === 12) {
+    for (const p of [2, 3, 4]) { if (d.slice(p, p + 2) === '15') { d = d.slice(0, p) + d.slice(p + 2); break; } }
+  }
+  return '549' + d;
+}
+const edadTexto = (i) => (i.edad !== '' && i.edad != null ? ` · ${i.edad} ${Number(i.edad) === 1 ? 'año' : 'años'}` : '');
 
 /* =========================================================
-   Pixel art: íconos, integrantes y la escena del barrio
+   Pixel art: íconos e integrantes en pantalla ámbar
    ========================================================= */
 const PAL = { R: '#ff5a1f', W: '#f4f3ef', Y: '#e5d23b', D: '#2b2b2e', T: '#3b3b3f', A: '#2b2b2e', G: '#2b2b2e', L: '#ff5a1f', H: '#3b3b3f', S: '#8a8a8d', C: '#ff5a1f', P: '#2b2b2e', B: '#2b2b2e' };
 const ICONOS = {
   casa: ['.....RR.....', '....RRRR....', '...RRRRRR...', '..RRRRRRRR..', '.RRRRRRRRRR.', 'RRRRRRRRRRRR', '.WWWWWWWWWW.', '.WYYWWWWDDW.', '.WYYWWWWDDW.', '.WWWWWWWDDW.', '.WWWWWWWDDW.', '............'],
-  familia: ['..HH....HH..', '..SS....SS..', '.CCCC..AAAA.', '.CCCC..AAAA.', '.CCCC..AAAA.', '..PP....PP..', '..PP.HH.PP..', '..PP.SS.PP..', '..PP.GG.PP..', '.....GG.....', '.....PP.....', '............'],
-  barrio: ['..GGG.......', '.GGGGG..AA..', '.GGGGG..AA..', '..GGG..R.R..', '...T..RRRRR.', '...T..WWWWW.', '...T..WYWDW.', '...T..WWWDW.', 'TTTTTTTTTTTT', '............', '.B..B..B..B.', '............'],
   cruz: ['............', '....LLLL....', '....LLLL....', '.LLLLLLLLLL.', '.LLLLLLLLLL.', '.LLLLLLLLLL.', '.LLLLLLLLLL.', '....LLLL....', '....LLLL....', '............', 'TTTTTTTTTTTT', '............'],
-  lupa: ['..TTTT......', '.T....T.....', 'T......T....', 'T......T....', 'T......T....', 'T......T....', '.T....T.....', '..TTTTRR....', '.......RR...', '........RR..', '.........RR.', '..........R.'],
   check: ['............', 'TTTTTTTT....', 'T......T..G.', 'T......T.GG.', 'T......TGG..', 'T.G...GGG...', 'T.GG.GGT....', 'T..GGG.T....', 'T...G..T....', 'TTTTTTTT....', '............', '............'],
-  carro: ['............', 'RR..........', '.R..........', '.RTTTTTTTTT.', '.RT.T.T.T.T.', '.RTTTTTTTTT.', '..T.T.T.T.T.', '..TTTTTTTTT.', '..R.......R.', '..RRRRRRRRR.', '...WW....WW.', '...WW....WW.'],
   hoja: ['.WWWWWWW....', '.W.....WW...', '.W.YYY.WWW..', '.W.......W..', '.W.TTTTT.W..', '.W.......W..', '.W.TTTTT.W..', '.W.......W..', '.W.TTT...W..', '.W.......W..', '.WWWWWWWWW..', '............'],
-  tele: ['............', 'TTTTTTTTTTTT', 'T..........T', 'T....R.....T', 'T....RR....T', 'T....RRR...T', 'T....RR....T', 'T....R.....T', 'T..........T', 'TTTTTTTTTTTT', '....TTTT....', '..TTTTTTTT..'],
   gota: ['.....A......', '.....A......', '....AAA.....', '....AAA.....', '...AAAAA....', '..AAAAAAA...', '..AAWAAAA...', '.AAWAAAAAA..', '.AAWAAAAAA..', '.AAAAAAAAA..', '..AAAAAAA...', '...AAAAA....'],
   lata: ['............', '..TTTTTTT...', '.TWWWWWWWT..', '.TTTTTTTTT..', '.TRRRRRRRT..', '.TRYYYYYRT..', '.TRYYYYYRT..', '.TRRRRRRRT..', '.TRRRRRRRT..', '.TTTTTTTTT..', '..TTTTTTT...', '............'],
   rayo: ['......YYY...', '.....YYY....', '....YYY.....', '...YYY......', '..YYYYYYY...', '.....YYY....', '....YYY.....', '...YYY......', '..YY........', '.YY.........', 'Y...........', '............'],
@@ -182,21 +226,16 @@ const SPRITES = {
   bebe: ['.......', '.......', '.......', '.......', '.......', '.......', '..HHH..', '.SSSSS.', '.SSSSS.', '.CCCCC.', 'CCCCCCC', '.CCCCC.', '.S...S.']
 };
 SPRITES.mayor = SPRITES.adulto;
-const PIELES = ['#f1c7a5', '#e0a87a', '#c98a5e', '#8f5b3d', '#6b4228'];
-const PELOS = ['#2a1e52', '#5a2a1a', '#08071a', '#8a5a3c', '#c7742a'];
-const ROPAS = ['#ff9f43', '#4cc9d6', '#ffd447', '#7bd04a', '#ff5c7a', '#9b7bff'];
-function hash(s) { let h = 0; for (const c of s) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0; return h; }
-// En la V02 los integrantes se ven en una pantalla de cristal líquido ámbar.
 const LCD_ROPAS = ['#ff9a3c', '#ffb866', '#e07a24'];
+function hash(s) { let h = 0; for (const c of s) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0; return h; }
 function paletaDe(i) {
   const h = hash(i.id);
   return { H: i.tipo === 'mayor' ? '#ffe2bd' : '#c4651f', S: '#ffd29a', C: LCD_ROPAS[(h >>> 6) % LCD_ROPAS.length], P: '#8a4514', B: '#5a2c0c' };
 }
 function sprite(ctx, filas, x, y, pal) {
   for (let j = 0; j < filas.length; j++) {
-    const f = filas[j];
-    for (let i = 0; i < f.length; i++) {
-      const k = f[i];
+    for (let i = 0; i < filas[j].length; i++) {
+      const k = filas[j][i];
       if (k === '.' || !pal[k]) continue;
       ctx.fillStyle = pal[k];
       ctx.fillRect(x + i, y + j, 1, 1);
@@ -213,148 +252,39 @@ function pintarSprites(raiz) {
     if (i && c.getContext) sprite(c.getContext('2d'), SPRITES[i.tipo] || SPRITES.adulto, 0, 0, paletaDe(i));
   });
 }
-function azar(semilla) {
-  let s = semilla >>> 0;
-  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
-}
-function dibujarBarrio(cv) {
-  if (!cv || !cv.getContext) return () => {};
-  const W = 384, H = 144;
-  const ctx = cv.getContext('2d');
-  const base = document.createElement('canvas');
-  base.width = W; base.height = H;
-  const b = base.getContext('2d');
-  const r = azar(29102026);
-  const cielo = ['#08071a', '#0e0b26', '#161033', '#211640', '#331c4c', '#52264f', '#7f384a'];
-  const cortes = [0, 16, 32, 48, 62, 74, 88, 106];
-  for (let k = 0; k < cielo.length; k++) { b.fillStyle = cielo[k]; b.fillRect(0, cortes[k], W, cortes[k + 1] - cortes[k]); }
-  for (let k = 0; k < cielo.length - 1; k++) {
-    b.fillStyle = cielo[k + 1];
-    for (let y = cortes[k + 1] - 2; y < cortes[k + 1]; y++) for (let x = y % 2; x < W; x += 2) b.fillRect(x, y, 1, 1);
-  }
-  for (let y = 0; y < 118; y++) {
-    b.fillStyle = `rgba(175,190,255,${(0.10 - y * 0.0006).toFixed(4)})`;
-    b.fillRect((40 + y * 0.55) | 0, y, (18 + y * 0.62) | 0, 1);
-  }
-  for (let k = 0; k < 60; k++) {
-    const sx = (r() * W) | 0, sy = (r() * 58) | 0;
-    b.fillStyle = r() > 0.7 ? '#efe9da' : '#8f86b8';
-    b.fillRect(sx, sy, 1, 1);
-    if (r() > 0.93) { b.fillRect(sx - 1, sy, 3, 1); b.fillRect(sx, sy - 1, 1, 3); }
-  }
-  b.fillStyle = '#efe9da';
-  for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 10; dx++) if (dx * dx + dy * dy <= 100) b.fillRect(330 + dx, 26 + dy, 1, 1);
-  b.fillStyle = '#d9cca9'; b.fillRect(326, 23, 3, 2); b.fillRect(332, 28, 2, 2);
-  let x = 0;
-  while (x < W) {
-    const w = 6 + ((r() * 14) | 0), h = 10 + ((r() * 30) | 0);
-    b.fillStyle = '#231a4a'; b.fillRect(x, 106 - h, w, h);
-    b.fillStyle = '#43377e';
-    for (let wy = 106 - h + 3; wy < 102; wy += 4) for (let wx = x + 2; wx < x + w - 1; wx += 3) if (r() > 0.75) b.fillRect(wx, wy, 1, 1);
-    x += w + ((r() * 3) | 0);
-  }
-  const paredes = ['#5b3f8c', '#7a4b6e', '#3f5f8a', '#8a5a3c', '#6a7a3c', '#4f4a96'];
-  x = -4;
-  while (x < W) {
-    const cw = 22 + ((r() * 22) | 0), ch = 14 + ((r() * 12) | 0), top = 118 - ch;
-    b.fillStyle = paredes[(r() * paredes.length) | 0]; b.fillRect(x, top, cw, ch);
-    if (r() > 0.45) {
-      b.fillStyle = '#8e96aa'; b.fillRect(x - 1, top - 3, cw + 2, 3);
-      b.fillStyle = '#5f6679'; for (let tx = x; tx < x + cw + 1; tx += 3) b.fillRect(tx, top - 3, 1, 3);
-    } else {
-      b.fillStyle = '#b4553a'; for (let t = 0; t < 5; t++) b.fillRect(x - 1 + t * 2, top - 1 - t, cw + 2 - t * 4, 1);
-    }
-    for (let vx = x + 3; vx + 5 < x + cw - 6; vx += 9) {
-      b.fillStyle = '#1a1433'; b.fillRect(vx, top + 4, 5, 5);
-      b.fillStyle = r() > 0.45 ? '#ffd447' : '#2c2552'; b.fillRect(vx + 1, top + 5, 3, 3);
-    }
-    b.fillStyle = '#1a1433'; b.fillRect(x + cw - 6, 110, 4, 8);
-    if (r() > 0.5) {
-      const tqx = x + 3 + ((r() * Math.max(1, cw - 10)) | 0), tqy = top - 11;
-      b.fillStyle = '#6b7286'; b.fillRect(tqx, tqy + 6, 1, 4); b.fillRect(tqx + 5, tqy + 6, 1, 4);
-      b.fillStyle = '#4cc9d6'; b.fillRect(tqx, tqy + 1, 6, 5);
-      b.fillStyle = '#2b8f99'; b.fillRect(tqx, tqy, 6, 1); b.fillRect(tqx, tqy + 5, 6, 1);
-    }
-    x += cw + 2 + ((r() * 5) | 0);
-  }
-  b.fillStyle = '#5a4c99'; b.fillRect(0, 118, W, 1);
-  b.fillStyle = '#352d6b'; b.fillRect(0, 119, W, 4);
-  b.fillStyle = '#120e26'; b.fillRect(0, 123, W, H - 123);
-  b.fillStyle = '#352d6b'; for (x = 4; x < W; x += 16) b.fillRect(x, 134, 8, 1);
-  [[20, 128, 30], [96, 138, 24], [214, 129, 34], [300, 139, 28], [352, 127, 20]].forEach((c) => {
-    b.fillStyle = '#1f4f6b'; b.fillRect(c[0] + 2, c[1], c[2] - 4, 1); b.fillRect(c[0], c[1] + 1, c[2], 2); b.fillRect(c[0] + 2, c[1] + 3, c[2] - 4, 1);
-    b.fillStyle = '#4cc9d6'; b.fillRect(c[0] + 4, c[1] + 1, 3, 1); b.fillRect(c[0] + c[2] - 9, c[1] + 2, 2, 1);
-  });
-  const vecinos = [
-    { x: 150, pal: { H: '#2a1e52', S: '#e0a87a', C: '#ff9f43', P: '#352d6b', B: '#08071a' } },
-    { x: 160, pal: { H: '#5a2a1a', S: '#c98a5e', C: '#4cc9d6', P: '#231a4a', B: '#08071a' } },
-    { x: 170, pal: { H: '#08071a', S: '#8f5b3d', C: '#ffd447', P: '#352d6b', B: '#08071a' } },
-    { x: 180, pal: { H: '#d9d2ee', S: '#e8b48c', C: '#7bd04a', P: '#231a4a', B: '#08071a' } }
-  ];
-  for (let i = 0; i < 46; i++) {
-    const media = (i * 0.32) | 0;
-    b.fillStyle = `rgba(255,212,71,${(0.22 - i * 0.004).toFixed(3)})`;
-    b.fillRect(188 + i, 113 - media, 1, media * 2 + 1);
-  }
-  vecinos.forEach((v) => sprite(b, SPRITES.adulto, v.x, 107, v.pal));
-  b.fillStyle = '#efe9da'; b.fillRect(186, 113, 2, 2);
-  b.fillStyle = '#1a1433'; b.fillRect(158, 113, 2, 3);
-  b.fillStyle = '#ff5c7a'; b.fillRect(158, 109, 1, 4);
-
-  const rr = azar(611);
-  const gotas = Array.from({ length: 90 }, () => ({ x: rr() * (W + 40), y: rr() * H, v: 2.2 + rr() * 1.4 }));
-  const pintar = () => {
-    ctx.drawImage(base, 0, 0);
-    ctx.fillStyle = 'rgba(170,215,255,0.5)';
-    for (const d of gotas) { ctx.fillRect(d.x | 0, d.y | 0, 1, 3); ctx.fillRect((d.x - 1) | 0, (d.y + 3) | 0, 1, 1); }
-  };
-  pintar();
-  let vivo = true, ultimo = 0;
-  if (!reduce) {
-    const bucle = (t) => {
-      if (!vivo) return;
-      if (!document.hidden && t - ultimo > 40) {
-        for (const d of gotas) { d.y += d.v; d.x -= d.v * 0.35; if (d.y > H) { d.y = -4; d.x = rr() * (W + 40); } }
-        pintar();
-        ultimo = t;
-      }
-      requestAnimationFrame(bucle);
-    };
-    requestAnimationFrame(bucle);
-  }
-  return () => { vivo = false; };
-}
 
 /* =========================================================
    Vistas
    ========================================================= */
 const MODULOS = [
-  { id: 'necesidades', nombre: 'Mis necesidades', desc: 'Qué falta y en qué orden', icono: 'lupa' },
-  { id: 'familia', nombre: 'Familia y yo', desc: 'Una ficha por integrante', icono: 'familia' },
-  { id: 'checklists', nombre: 'Checklists', desc: 'Los pasos para tildar', icono: 'check' },
-  { id: 'compras', nombre: 'Compras', desc: 'De la lista al carrito', icono: 'carro' },
-  { id: 'plan', nombre: 'Mi plan', desc: 'Quién hace qué', icono: 'hoja' },
-  { id: 'zona', nombre: 'Mi zona', desc: 'Mapa de riesgos y ayuda', icono: 'barrio' },
-  { id: 'tutoriales', nombre: 'Tutoriales', desc: 'Aprender haciendo', icono: 'tele', sinProgreso: true },
-  { id: 'emergencia', nombre: 'Modo emergencia', desc: 'Linterna, silbato, números', icono: 'cruz', sinProgreso: true, sos: true }
+  { id: 'hogar', nombre: 'Mi hogar', desc: 'Quiénes, dónde y qué tienen' },
+  { id: 'familia', nombre: 'Familia', desc: 'Una ficha por persona' },
+  { id: 'inventario', nombre: 'Inventario', desc: 'Cuánto hay y hasta cuándo' },
+  { id: 'compras', nombre: 'Compras', desc: 'Lo que falta conseguir' },
+  { id: 'plan', nombre: 'Mi plan', desc: 'Quién hace qué' },
+  { id: 'red', nombre: 'Red', desc: 'Contactos para escribir' },
+  { id: 'zona', nombre: 'Mi zona', desc: 'Mapa del barrio' },
+  { id: 'tutoriales', nombre: 'Tutoriales', desc: 'Aprender haciendo', sinProgreso: true },
+  { id: 'emergencia', nombre: 'SOS', desc: 'Luz, silbato, números', sinProgreso: true, sos: true }
 ];
+const CODIGOS = ['1', '2', '3', '4', '5', '6', '7', '8', '✚'];
 
-function cabeza(numero, titulo, intro) {
-  return `<section class="cabeza"><p class="rotulo">${numero}</p><h2 class="aberracion">${titulo}</h2>${intro ? `<p class="intro">${intro}</p>` : ''}</section>`;
+function cabeza(rotulo, titulo, intro) {
+  return `<section class="cabeza"><p class="rotulo">${rotulo}</p><h2>${titulo}</h2>${intro ? `<p class="intro">${intro}</p>` : ''}</section>`;
 }
 
 /* ---------- inicio ---------- */
-const CODIGOS = ['A', 'B', '1', '2', '3', '4', '5', 'SOS'];
 function verInicio() {
   const p = progresoModulos();
   const valores = Object.values(p);
   const total = valores.reduce((a, b) => a + b, 0) / valores.length;
   const pct = Math.round(total * 100);
-  const venc = vencidos();
+  const inv = progresoInventario();
+  const renovar = paraRenovar().length;
   const ultima = estado.revision.ultima;
   const proxima = ultima ? sumarMeses(ultima, 3) : null;
   const toca = !proxima || proxima <= hoy();
-  const meta14 = estado.hogar.meta === 14;
+  const nRed = estado.red.length;
   return `
   <section class="panel consola" aria-label="Barrio Listo">
     <div class="consola-tope"><span class="rejilla" aria-hidden="true"></span></div>
@@ -365,156 +295,175 @@ function verInicio() {
       </div>
       <div class="controles">
         <div class="grupo-corchete">
-          <span class="corchete-titulo">72 H · META · 2 SEM</span>
-          <button type="button" class="perilla" data-accion="perilla-meta" style="--giro:${meta14 ? '55deg' : '-55deg'}" aria-label="Meta: ${meta14 ? '2 semanas' : '72 horas'}. Tocá para cambiarla."><span></span></button>
-          <span class="etiqueta">${meta14 ? '2 semanas' : '72 horas'}</span>
+          <span class="corchete-titulo">TU RED</span>
+          <a class="perilla" href="#red" aria-label="Abrir tu red: ${plural(nRed, 'contacto', 'contactos')}"><span></span></a>
+          <span class="etiqueta">${plural(nRed, 'contacto', 'contactos')}</span>
         </div>
         <div class="medidor-caja">
-          <span class="etiqueta">Energía</span>
-          <div class="medidor" role="meter" aria-label="Energía comunitaria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" style="--nivel-n:${total.toFixed(3)}"><i></i><b></b></div>
+          <span class="etiqueta">Avance</span>
+          <div class="medidor" role="meter" aria-label="Avance de la preparación" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" style="--nivel-n:${total.toFixed(3)}"><i></i><b></b></div>
         </div>
         <div class="estado-lcd pantalla-lcd">
-          <span>REVISIÓN</span>
-          <strong>${ultima ? (toca ? 'YA TOCA' : fechaCorta(proxima)) : 'PENDIENTE'}</strong>
-          <span>${venc.length ? `${venc.length} PARA RENOVAR` : 'SIN VENCIDOS'}</span>
+          <span>INVENTARIO</span>
+          <strong>${inv.n}/${inv.total}</strong>
+          <span>${renovar ? `${renovar} PARA RENOVAR` : 'TODO AL DÍA'}</span>
         </div>
       </div>
     </div>
   </section>
-  ${!estado.hogar.configurado ? `<a class="panel cta" href="#necesidades"><span class="rotulo">Para empezar</span><h3>Contá quiénes son y dónde viven</h3><p>Tarda dos minutos. Con eso la app calcula qué les falta y en qué orden conseguirlo.</p></a>` : ''}
-  ${venc.length ? `<a class="panel alerta-panel" href="#checklists"><span class="rotulo">Para revisar</span><h3>${venc.length === 1 ? '1 cosa venció o hay que rotarla' : `${venc.length} cosas vencieron o hay que rotarlas`}</h3></a>` : ''}
+  ${!hogarIniciado() ? `<a class="panel cta" href="#hogar"><span class="rotulo">Para empezar</span><h3>Cargá tu hogar</h3><p>Quiénes son, dónde viven y qué ya tienen en casa. Se completa de a poco, a tu ritmo.</p></a>` : ''}
+  ${renovar ? `<a class="panel alerta-panel" href="#inventario"><span class="rotulo">Para renovar</span><h3>${renovar === 1 ? 'Hay 1 cosa para renovar' : `Hay ${renovar} cosas para renovar`}</h3><p>Nada urgente: sumalo a la próxima compra.</p></a>` : ''}
   <p class="rotulo">Elegí tu módulo</p>
   <div class="teclado">
     ${MODULOS.map((m, n) => `<a class="tecla-doble${m.sos ? ' sos' : ''}" href="#${m.id}"><span class="tecla-leds">${m.sinProgreso ? '<span class="leds"><i class="led"></i></span>' : monedas(p[m.id])}</span><span class="tecla-sup"><span class="tecla-cod">${CODIGOS[n]}</span>${m.nombre}</span><span class="tecla-inf">${m.desc}</span></a>`).join('')}
   </div>
   <div class="panel">
-    <h3>Revisión cada 2 o 3 meses</h3>
-    <p>${ultima ? `La última fue el ${fechaCorta(ultima)}. ${toca ? '<b>Ya toca la próxima.</b>' : `La próxima es el ${fechaCorta(proxima)}.`}` : 'Todavía no hicieron la primera. Revisen vencimientos, linternas, reservas de agua y comida, y la lista de teléfonos.'}</p>
-    <div class="fila"><button type="button" class="boton${toca ? ' primario' : ''}" data-accion="revision">Hicimos la revisión hoy</button></div>
+    <h3>Repaso cada 2 o 3 meses</h3>
+    <p>${ultima ? `El último fue el ${fechaCorta(ultima)}. ${toca ? '<b>Ya se puede hacer el próximo.</b>' : `El próximo, desde el ${fechaCorta(proxima)}.`}` : 'Un repaso tranquilo del inventario: vencimientos, pilas, agua y teléfonos.'}</p>
+    <div class="fila"><button type="button" class="boton${toca ? ' primario' : ''}" data-accion="revision">Hicimos el repaso hoy</button></div>
   </div>
   <p class="nota"><a href="#ajustes">Ajustes y copia de seguridad</a> · <a href="../">Ir a la versión 1</a> · Prototipo. El contenido sale del curso de preparacionismo comunitario y hay que validarlo con protección civil y salud.</p>`;
 }
 
-/* ---------- necesidades ---------- */
+/* ---------- mi hogar ---------- */
 function formSumar() {
   return `<form class="fila" data-form="sumar-integrante" autocomplete="off">
-    <label class="campo" style="flex:2 1 160px">Nombre<input type="text" name="nombre" required maxlength="40" placeholder="Ej.: Ana"></label>
-    <label class="campo" style="flex:1 1 150px">Quién es<select name="tipo">${Object.entries(TIPOS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+    <label class="campo" style="flex:2 1 150px">Nombre<input type="text" name="nombre" required maxlength="40" placeholder="Ej.: Ana"></label>
+    <label class="campo" style="flex:1 1 130px">Quién es<select name="tipo">${Object.entries(TIPOS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+    <label class="campo" style="flex:0 1 90px">Edad<input type="number" name="edad" min="0" max="120" inputmode="numeric" placeholder="Años"></label>
     <button type="submit" class="boton primario" style="align-self:end">Sumar</button>
   </form>`;
 }
-function verNecesidades() {
-  const h = estado.hogar, z = h.zona, p = personas();
-  const caja = (campo, valor, texto) => `<label class="opcion"><input type="checkbox" data-campo="${campo}" ${valor ? 'checked' : ''}><span>${texto}</span></label>`;
+function verHogar() {
+  const h = estado.hogar, p = personas();
+  const campo = (k, etiqueta, ph) => `<label class="campo">${etiqueta}<input type="text" data-campo="hogar.${k}" value="${esc(h[k])}" placeholder="${ph}" maxlength="120" autocomplete="off"></label>`;
+  const pr = progresoInventario();
+  const mapa = linkMapsDireccion();
   return `
-  ${cabeza('Módulo 1', 'Mis necesidades', 'Contá quiénes son y dónde viven. Con eso la app calcula qué les falta y en qué orden conseguirlo.')}
+  ${cabeza('Módulo 1', 'Mi hogar', 'Quiénes son, dónde viven y qué ya tienen en casa. Con eso se arman el inventario y la lista de compras. Se completa de a poco.')}
   <div class="panel">
     <h3>1 · Quiénes son</h3>
-    ${p ? `<ul class="limpia">${estado.integrantes.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b> · ${TIPOS[i.tipo]}</span><button type="button" class="boton chico" data-accion="quitar-integrante" data-id="${i.id}">Quitar</button></li>`).join('')}</ul>` : '<p class="nota">Todavía no sumaste a nadie. Empezá por vos.</p>'}
+    ${p ? `<ul class="limpia">${estado.integrantes.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b> · ${TIPOS[i.tipo]}${edadTexto(i)}</span><button type="button" class="boton chico" data-accion="quitar-integrante" data-id="${i.id}">Quitar</button></li>`).join('')}</ul>` : '<p class="nota">Todavía no sumaste a nadie. Empezá por vos.</p>'}
     ${formSumar()}
+    <label class="opcion"><input type="checkbox" data-campo="hogar.mascotas" ${h.mascotas ? 'checked' : ''}><span>Tenemos mascotas</span></label>
+    <p class="nota">La salud y las observaciones de cada uno se completan en <a href="#familia">Familia</a>.</p>
   </div>
   <div class="panel">
     <h3>2 · Dónde viven</h3>
-    <div class="opciones">
-      ${caja('hogar.zona.inundable', z.inundable, 'La zona se inunda')}
-      ${caja('hogar.zona.sismica', z.sismica, 'Es zona sísmica')}
-      ${caja('hogar.zona.calor', z.calor, 'Hay olas de calor fuertes')}
-      ${caja('hogar.zona.incendios', z.incendios, 'Hay riesgo de incendios cerca')}
-      ${caja('hogar.mascotas', h.mascotas, 'Tenemos mascotas')}
+    <div class="dos">
+      ${campo('direccion', 'Calle y número', 'Ej.: Av. San Martín 1234')}
+      ${campo('entreCalles', 'Entre calles', 'Ej.: Belgrano y Moreno')}
+      ${campo('barrio', 'Barrio', 'Ej.: Villa Crespo')}
+      ${campo('localidad', 'Localidad o partido', 'Ej.: CABA')}
+      ${campo('provincia', 'Provincia', 'Ej.: Buenos Aires')}
+      ${campo('referencia', 'Referencia', 'Ej.: portón verde, casa del fondo')}
     </div>
-    <p class="nota">Si alguien es electrodependiente o toma medicación, marcalo en su ficha de <a href="#familia">Familia y yo</a>.</p>
+    <div class="fila"><a class="boton chico" id="ver-direccion" href="${mapa || '#hogar'}" target="_blank" rel="noopener" ${mapa ? '' : 'hidden'}>Ver en Google Maps ↗</a><a class="boton chico" href="#zona">Marcar en Mi zona</a></div>
+    <p class="nota">Sirve para decir dónde están si hay que pedir ayuda. Queda guardado solo en este teléfono.</p>
   </div>
   <div class="panel">
-    <h3>3 · Meta</h3>
-    <div class="opciones">
-      <label class="opcion"><input type="radio" name="meta" data-campo="hogar.meta" data-num value="3" ${h.meta !== 14 ? 'checked' : ''}><span><b>72 horas.</b> Para arrancar: son las horas más difíciles para los rescatistas.</span></label>
-      <label class="opcion"><input type="radio" name="meta" data-campo="hogar.meta" data-num value="14" ${h.meta === 14 ? 'checked' : ''}><span><b>2 semanas.</b> La meta que propone el curso.</span></label>
-    </div>
+    <h3>3 · Qué ya tienen en casa</h3>
+    <p class="nota">Tocá lo que ya tienen. Las cantidades y los vencimientos se anotan después en el inventario.</p>
+    <div class="grilla-tengo">${INICIALES.map((id) => {
+      const e = ELEMENTOS.find((x) => x.id === id);
+      const t = !!registro(id).tengo;
+      return `<button type="button" class="tecla-tengo" data-accion="tengo" data-id="${id}" aria-pressed="${t}"><i class="led${t ? ' on' : ''}" aria-hidden="true"></i><span>${e.corto}</span></button>`;
+    }).join('')}</div>
   </div>
-  ${p ? resultadoNecesidades() : ''}`;
-}
-function resultadoNecesidades() {
-  const p = personas(), dias = estado.hogar.meta, c = condiciones();
-  const litros = p * 3 * dias;
-  const meds = estado.integrantes.filter((i) => (i.medicacion || '').trim()).map((i) => esc(i.nombre));
-  const prioridades = [
-    meds.length ? `<li><span>Medicación de 2 a 4 semanas para ${meds.join(', ')}.</span></li>` : '',
-    c.electro ? '<li><span>Energía para la persona electrodependiente: una UPS y un punto de carga en la cuadra.</span></li>' : '',
-    c.bebes ? '<li><span>Pañales, leche y comida de bebé para 72 horas.</span></li>' : ''
-  ].join('');
-  return `
-  ${cabeza('Resultado', 'Lo que necesitan')}
-  <div class="resumen">
-    <div class="panel"><span class="rotulo">Agua</span><span class="dato-grande">${litros} L</span><span class="nota">${p} × 3 L × ${dias} días · unos ${Math.ceil(litros / 6)} bidones de 6 L</span></div>
-    <div class="panel"><span class="rotulo">Mochilas</span><span class="dato-grande">${p}</span><span class="nota">Una por persona, de no más del 15% de su peso</span></div>
-    <div class="panel"><span class="rotulo">Efectivo</span><span class="dato-grande">72 h</span><span class="nota">Para comprar sin luz ni señal</span></div>
-  </div>
-  ${prioridades ? `<div class="panel alerta-panel"><h3>Primero esto</h3><ul class="puntos">${prioridades}</ul></div>` : ''}
   <div class="panel">
-    <h3>En qué orden</h3>
-    <ol class="orden">${CATEGORIAS.map((cat) => { const pr = progresoCat(cat); return `<li><div class="orden-fila"><a href="#checklists" data-accion="ir-cat" data-cat="${cat.id}">${cat.nombre}</a><span class="nota">${pr.n} de ${pr.total} listos</span><div class="mini-barra"><i style="width:${Math.round(pr.r * 100)}%"></i></div></div></li>`; }).join('')}</ol>
-    <div class="fila"><a class="boton primario" href="#compras">Ver la lista de compras</a><a class="boton" href="#checklists">Ir a los checklists</a></div>
+    <h3>Cómo vienen</h3>
+    <p>Tienen <b>${pr.n} de ${pr.total}</b> cosas de la lista.</p>
+    <ul class="limpia">${CATEGORIAS.map((cat) => { const c = progresoCat(cat.id); return c.total ? `<li class="orden-fila"><a href="#inventario" data-accion="ir-cat" data-cat="${cat.id}">${cat.nombre}</a><span class="nota">${c.n} de ${c.total}</span><div class="mini-barra"><i style="width:${Math.round(c.r * 100)}%"></i></div></li>` : ''; }).join('')}</ul>
+    <div class="fila"><a class="boton primario" href="#inventario">Ir al inventario</a><a class="boton" href="#compras">Qué falta conseguir</a></div>
   </div>`;
+}
+function actualizarLinkDireccion() {
+  const a = document.getElementById('ver-direccion');
+  if (!a) return;
+  const url = linkMapsDireccion();
+  a.hidden = !url;
+  a.href = url || '#hogar';
 }
 
 /* ---------- familia ---------- */
 let familiaSel = null;
+let obsEdicion = [];
 function verFamilia() {
   const ints = estado.integrantes;
-  const intro = 'Una ficha por integrante, con lo que hace falta saber en una emergencia. Queda guardada solo en este teléfono.';
-  if (!ints.length) {
-    return `${cabeza('Módulo 2', 'Familia y yo', intro)}<div class="panel"><h3>Todavía no hay nadie</h3><p>Sumá a cada integrante de la casa. Después completás su ficha.</p>${formSumar()}</div>`;
-  }
+  const intro = 'Una ficha por persona, con lo que hace falta saber para cuidarse entre todos. Queda guardada solo en este teléfono.';
+  if (!ints.length) return `${cabeza('Módulo 2', 'Familia', intro)}<div class="panel"><h3>Todavía no hay nadie</h3><p>Sumá a cada persona de la casa. Después completás su ficha.</p>${formSumar()}</div>`;
   const sel = ints.find((i) => i.id === familiaSel) || ints[0];
   familiaSel = sel.id;
   const lleva = ints.find((i) => i.id === sel.mochila);
-  const completo = [sel.grupo, sel.contacto, sel.alergias || sel.medicacion || sel.notas].filter(Boolean).length / 3;
+  const completo = [sel.edad !== '', sel.grupo, sel.contacto].filter(Boolean).length / 3;
   const dato = (etiqueta, valor) => `<div><span>${etiqueta}:</span> ${valor ? esc(valor) : '—'}</div>`;
   return `
-  ${cabeza('Módulo 2', 'Familia y yo', intro)}
-  <div class="panel pantalla-sel foco crt">
+  ${cabeza('Módulo 2', 'Familia', intro)}
+  <div class="panel pantalla-sel">
     <div class="pantalla">
       <canvas class="grande" width="7" height="13" data-avatar="${sel.id}" aria-hidden="true"></canvas>
       <div style="display:grid;gap:8px;min-width:0">
-        <p class="rotulo">Elegí tu integrante</p>
-        <p class="nombre aberracion">${esc(sel.nombre.toUpperCase())}</p>
+        <p class="rotulo">Elegí la persona</p>
+        <p class="nombre">${esc(sel.nombre.toUpperCase())}</p>
         <div class="ficha">
-          <div><span>Quién es:</span> ${TIPOS[sel.tipo]}${sel.electro ? ' · electrodependiente' : ''}</div>
+          <div><span>Quién es:</span> ${TIPOS[sel.tipo]}${edadTexto(sel)}</div>
           ${dato('Grupo y factor', sel.grupo)}
           ${dato('Alergias', sel.alergias)}
           ${dato('Medicación', sel.medicacion)}
           ${dato('Obra social', sel.obraSocial)}
           ${dato('Contacto', sel.contacto)}
           ${dato('Su mochila la lleva', lleva ? lleva.nombre : '')}
+          ${sel.notas ? dato('Notas', sel.notas) : ''}
         </div>
+        ${sel.obs.length ? `<div class="obs-ficha">${sel.obs.map((o) => `<span class="chip-lcd">${esc(nombreObs(o))}</span>`).join('')}</div>` : ''}
         <div class="fila">${monedas(completo)}<button type="button" class="boton primario chico" data-accion="editar-integrante" data-id="${sel.id}">Editar ficha</button></div>
       </div>
     </div>
   </div>
-  <div class="selector" role="group" aria-label="Integrantes">
+  <div class="selector" role="group" aria-label="Personas">
     ${ints.map((i) => `<button type="button" data-accion="elegir-integrante" data-id="${i.id}" aria-pressed="${i.id === sel.id}"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas>${esc(i.nombre)}</button>`).join('')}
   </div>
   <div class="panel"><h3>Sumar a alguien</h3>${formSumar()}</div>`;
 }
+function chipsObs() {
+  return obsEdicion.length
+    ? obsEdicion.map((o) => `<span class="chip-obs">${esc(nombreObs(o))}<button type="button" data-obs-quitar="${o}" aria-label="Quitar ${esc(nombreObs(o))}">×</button></span>`).join('')
+    : '<span class="nota">Sin observaciones. Elegí de la lista para sumar.</span>';
+}
+function opcionesObs() {
+  return `<option value="">+ Sumar una observación</option>${OBSERVACIONES.filter((o) => !obsEdicion.includes(o.id)).map((o) => `<option value="${o.id}">${o.nombre}</option>`).join('')}`;
+}
+function redibujarObs() {
+  const l = dialogo.querySelector('#obs-lista');
+  const s = dialogo.querySelector('[data-obs-select]');
+  if (l) l.innerHTML = chipsObs();
+  if (s) s.innerHTML = opcionesObs();
+}
 function abrirEdicion(id) {
   const i = estado.integrantes.find((x) => x.id === id);
   if (!i) return;
+  obsEdicion = [...i.obs];
   const op = (valor, texto, actual) => `<option value="${esc(valor)}" ${valor === actual ? 'selected' : ''}>${esc(texto)}</option>`;
   dialogo.innerHTML = `
   <form data-dialogo="integrante" data-id="${i.id}">
-    <h2 id="dialogo-titulo" style="font-size:30px">Ficha de ${esc(i.nombre)}</h2>
+    <h2 id="dialogo-titulo">Ficha de ${esc(i.nombre)}</h2>
     <div class="dos">
       <label class="campo">Nombre<input type="text" name="nombre" value="${esc(i.nombre)}" required maxlength="40"></label>
       <label class="campo">Quién es<select name="tipo">${Object.entries(TIPOS).map(([k, v]) => op(k, v, i.tipo)).join('')}</select></label>
+      <label class="campo">Edad<input type="number" name="edad" min="0" max="120" inputmode="numeric" value="${esc(i.edad)}" placeholder="Años"></label>
       <label class="campo">Grupo y factor<select name="grupo">${GRUPOS.map((g) => op(g, g || 'Elegí', i.grupo)).join('')}</select></label>
       <label class="campo">Teléfono de contacto<input type="tel" name="contacto" value="${esc(i.contacto)}" maxlength="30"></label>
       <label class="campo">Obra social<input type="text" name="obraSocial" value="${esc(i.obraSocial)}" maxlength="60"></label>
       <label class="campo">Su mochila la lleva<select name="mochila">${op('', 'Sin definir', i.mochila)}${estado.integrantes.map((o) => op(o.id, o.nombre, i.mochila)).join('')}</select></label>
     </div>
+    <div class="campo-obs">
+      <span class="campo-titulo">Observaciones</span>
+      <div class="obs-lista" id="obs-lista">${chipsObs()}</div>
+      <select data-obs-select aria-label="Sumar una observación">${opcionesObs()}</select>
+    </div>
     <label class="campo">Alergias<input type="text" name="alergias" value="${esc(i.alergias)}" maxlength="120" placeholder="Ej.: penicilina"></label>
     <label class="campo">Medicación<input type="text" name="medicacion" value="${esc(i.medicacion)}" maxlength="160" placeholder="Qué toma y cada cuánto"></label>
-    <label class="campo">Notas<textarea name="notas" maxlength="400" placeholder="Lo que haga falta saber para cuidarle">${esc(i.notas)}</textarea></label>
-    <label class="opcion"><input type="checkbox" name="electro" ${i.electro ? 'checked' : ''}><span>Es electrodependiente</span></label>
+    <label class="campo">Notas<textarea name="notas" maxlength="400" placeholder="Lo que haga falta saber para acompañar a esta persona">${esc(i.notas)}</textarea></label>
     <div class="fila"><button type="submit" class="boton primario">Guardar</button><button type="button" class="boton" data-cerrar>Cancelar</button><button type="button" class="boton peligro" data-quitar="${i.id}">Quitar</button></div>
   </form>`;
   dialogo.showModal();
@@ -523,106 +472,136 @@ function quitarIntegrante(id) {
   estado.integrantes = estado.integrantes.filter((i) => i.id !== id);
   for (const i of estado.integrantes) if (i.mochila === id) i.mochila = '';
   for (const k of Object.keys(estado.plan.roles)) if (estado.plan.roles[k] === id) estado.plan.roles[k] = '';
-  if (!estado.integrantes.length) estado.hogar.configurado = false;
   if (familiaSel === id) familiaSel = null;
   guardar();
   refrescar();
 }
 
-/* ---------- checklists ---------- */
+/* ---------- inventario ---------- */
 let irACat = null;
-function itemCheck(it) {
-  const ch = estado.checks[it.id];
-  const bloqueado = !cuenta(it);
-  const vence = it.rotar && ch?.hecho && ch.fecha ? sumarMeses(ch.fecha, it.rotar) : null;
-  const vencido = vence && vence <= hoy();
-  const extra = vence
-    ? `<span class="${vencido ? 'chip vencido' : ''}">${vencido ? 'Venció el' : 'Revisar el'} ${fechaCorta(vence)}</span>`
-    : (it.rotar ? `<span>Se revisa cada ${it.rotar} meses</span>` : '');
-  return `<label class="paso${bloqueado ? ' bloqueado' : ''}"><input type="checkbox" data-check="${it.id}" ${ch?.hecho ? 'checked' : ''}><span class="paso-texto"><span>${esc(it.texto)}</span><span class="chips"><span class="chip ${it.etapa === '14d' ? 'c14d' : 'c72h'}">${it.etapa === '14d' ? '2 semanas' : '72 h'}</span>${bloqueado ? '<span>Siguiente nivel</span>' : ''}${extra}</span></span></label>`;
+function notaAgua(r) {
+  const p = personas();
+  if (!p || !(Number(r.cantidad) > 0)) return '';
+  const dias = Math.floor(Number(r.cantidad) / (p * 3));
+  return `Con ${r.cantidad} L, ${plural(p, 'persona tiene', 'personas tienen')} agua para ${dias < 1 ? 'menos de un día' : plural(dias, 'día', 'días')}.`;
 }
-function verChecklists() {
-  const venc = vencidos();
-  const meta = estado.hogar.meta;
+function filaElemento(e) {
+  const r = registro(e.id);
+  const st = estadoElemento(e);
+  const chip = st.texto ? `<span class="chips"><span class="chip ${st.tipo}">${st.texto}</span></span>` : '';
+  const agua = e.id === 'agua-litros' && r.tengo ? `<span class="nota" id="nota-agua">${notaAgua(r)}</span>` : '';
+  const quitar = e.extra ? `<button type="button" class="boton chico" data-accion="quitar-extra" data-id="${e.id}">Quitar</button>` : '';
+  const datos = r.tengo && !e.saber
+    ? `<div class="elemento-datos">
+        <label class="campo chico">Cantidad<span class="con-unidad"><input type="number" min="0" step="any" inputmode="decimal" data-cantidad="${e.id}" value="${r.cantidad ?? ''}"><span>${esc(e.unidad)}</span></span></label>
+        ${e.vence ? `<label class="campo chico">Vence<input type="date" data-vence="${e.id}" value="${r.vence || ''}"></label>` : ''}
+        ${quitar}
+      </div>`
+    : (quitar ? `<div class="elemento-datos">${quitar}</div>` : '');
+  return `<div class="elemento">
+    <label class="paso"><input type="checkbox" data-tengo="${e.id}" ${r.tengo ? 'checked' : ''}><span class="paso-texto"><span>${esc(e.nombre)}</span>${e.ref ? `<span class="nota">${esc(e.ref)}</span>` : ''}${agua}${chip}</span></label>
+    ${datos}
+  </div>`;
+}
+function verInventario() {
+  const pr = progresoInventario();
+  const ren = paraRenovar();
   return `
-  ${cabeza('Módulo 3', 'Checklists', `Tildá lo que ya tienen. Lo que se vence te avisa cuándo revisarlo. Meta actual: <b>${meta === 14 ? '2 semanas' : '72 horas'}</b>${meta === 14 ? '.' : '; lo de 2 semanas queda como siguiente nivel.'}`)}
-  ${venc.length ? `<div class="panel alerta-panel"><h3>Para revisar</h3><ul class="limpia">${venc.map((v) => `<li class="fila" style="justify-content:space-between"><span>${esc(v.it.texto)} <span class="chip vencido">venció ${fechaCorta(v.vence)}</span></span><button type="button" class="boton chico" data-accion="renovar" data-id="${v.it.id}">Ya lo renové</button></li>`).join('')}</ul></div>` : ''}
+  ${cabeza('Módulo 3', 'Inventario', 'Lo que tienen, cuánto y hasta cuándo. Anotá los vencimientos: la app te avisa con tiempo cuando algo conviene renovarse.')}
+  <div class="resumen">
+    <div class="panel"><span class="rotulo">Tienen</span><span class="dato-grande">${pr.n}/${pr.total}</span></div>
+    <div class="panel"><span class="rotulo">Para renovar</span><span class="dato-grande">${ren.length}</span><span class="nota">${ren.length ? 'Sumalo a la próxima compra.' : 'Todo al día.'}</span></div>
+  </div>
   ${CATEGORIAS.map((cat) => {
-    const pr = progresoCat(cat);
+    const els = elementos().filter((e) => e.cat === cat.id);
+    if (!els.length) return '';
+    const c = progresoDe(els);
     return `<article class="panel" id="cat-${cat.id}">
-      <div class="cat-tope"><canvas width="12" height="12" data-icono="${cat.icono}" aria-hidden="true"></canvas><h3>${cat.nombre}</h3><div class="cat-cuenta"><span>${pr.n}/${pr.total}</span>${monedas(pr.r)}</div></div>
-      ${itemsDe(cat).map(itemCheck).join('')}
+      <div class="cat-tope"><canvas width="12" height="12" data-icono="${cat.icono}" aria-hidden="true"></canvas><h3>${cat.nombre}</h3><div class="cat-cuenta"><span>${c.n}/${c.total}</span>${monedas(c.r)}</div></div>
+      ${els.map(filaElemento).join('')}
     </article>`;
-  }).join('')}`;
+  }).join('')}
+  <div class="panel">
+    <h3>Sumar otra cosa</h3>
+    <form class="dos" data-form="sumar-extra" autocomplete="off">
+      <label class="campo">Qué es<input type="text" name="nombre" required maxlength="60" placeholder="Ej.: repelente"></label>
+      <label class="campo">Dónde va<select name="cat">${CATEGORIAS.filter((c) => c.id !== 'saberes').map((c) => `<option value="${c.id}">${c.nombre}</option>`).join('')}</select></label>
+      <button type="submit" class="boton" style="align-self:end">Sumar</button>
+    </form>
+  </div>`;
 }
-function montarChecklists() {
+function montarInventario() {
   if (!irACat) return;
   const el = document.getElementById(`cat-${irACat}`);
   irACat = null;
-  if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 76);
+  if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 80);
+}
+function alternarTengo(id, valor) {
+  const r = registro(id);
+  estado.inventario[id] = { ...r, tengo: valor, desde: valor ? (r.desde || hoy()) : r.desde };
+  guardar();
 }
 
 /* ---------- compras ---------- */
-function faltaGastar(lista) {
-  let falta = 0;
-  for (const it of lista) { const c = estado.compras[it.id] || {}; if (!c.comprado) falta += Number(c.precio) || 0; }
-  return falta;
+function sugerencia(e) {
+  const p = personas();
+  if (e.id === 'agua-litros') return p ? `Referencia: 3 L por persona por día (${p * 3} L por día para ${plural(p, 'persona', 'personas')}).` : 'Referencia: 3 L por persona por día.';
+  if (e.porPersona && p) return `Sugerido: uno por persona (${p}).`;
+  return e.ref || '';
 }
-function itemCompra(it) {
-  const c = estado.compras[it.id] || {};
-  const url = it.buscar ? `https://listado.mercadolibre.com.ar/${encodeURIComponent(it.buscar.replace(/\s+/g, '-'))}` : null;
-  return `<li class="compra">
-    <input type="checkbox" data-compra="${it.id}" ${c.comprado ? 'checked' : ''} aria-label="Comprado: ${esc(it.nombre)}">
-    <div class="compra-cuerpo">
-      <span><b>${esc(it.nombre)}</b> <span class="chip">${esc(it.cat)}</span></span>
-      <span class="compra-cant">${esc(it.cant)}</span>
-      <div class="compra-fila">
-        <input type="number" inputmode="numeric" min="0" step="1" placeholder="Precio $" data-precio="${it.id}" value="${c.precio ?? ''}" aria-label="Precio de ${esc(it.nombre)}">
-        ${url ? `<a href="${url}" target="_blank" rel="noopener">Buscar en Mercado Libre ↗</a>` : '<span class="nota">Con receta, en la farmacia</span>'}
-      </div>
-    </div>
-  </li>`;
+function faltaGastar(lista) {
+  return lista.reduce((s, e) => s + (Number(estado.compras[e.id]?.precio) || 0), 0);
 }
 function verCompras() {
-  const p = personas();
-  if (!p) {
-    return `${cabeza('Módulo 4', 'Compras')}<a class="panel cta" href="#necesidades"><span class="rotulo">Primero</span><h3>Contá quiénes son</h3><p>La lista se calcula según cuántas personas son y dónde viven.</p></a>`;
+  const lista = faltantes();
+  if (!lista.length) {
+    return `${cabeza('Módulo 4', 'Compras')}<div class="panel"><h3>No falta nada de la lista</h3><p>Todo lo del inventario está y al día. Si querés sumar algo, hacelo desde el <a href="#inventario">inventario</a>.</p></div>`;
   }
-  const lista = listaCompras();
-  const comprados = lista.filter((it) => estado.compras[it.id]?.comprado).length;
-  const etapas = [['72h', 'Primero: 72 horas'], ['14d', 'Después: 2 semanas']].filter(([e]) => lista.some((i) => i.etapa === e));
   return `
-  ${cabeza('Módulo 4', 'Compras', `Calculado para ${plural(p, 'persona', 'personas')} y ${estado.hogar.meta === 14 ? '2 semanas' : '72 horas'}. Sin compras de pánico: de a poco, "un paquete más" cada vez.`)}
+  ${cabeza('Módulo 4', 'Compras', 'Lo que todavía no tienen o conviene renovar. De a poco, "un paquete más" cada vez; lo caro se puede comprar entre vecinos.')}
   <div class="resumen">
-    <div class="panel"><span class="rotulo">Comprado</span><span class="dato-grande">${comprados}/${lista.length}</span></div>
-    <div class="panel"><span class="rotulo">Falta gastar</span><span class="dato-grande" id="falta-gastar">${pesos(faltaGastar(lista))}</span><span class="nota">Según los precios que cargues</span></div>
+    <div class="panel"><span class="rotulo">Para conseguir</span><span class="dato-grande">${lista.length}</span></div>
+    <div class="panel"><span class="rotulo">Presupuesto</span><span class="dato-grande" id="falta-gastar">${pesos(faltaGastar(lista))}</span><span class="nota">Según los precios que cargues</span></div>
   </div>
-  ${etapas.map(([e, titulo]) => `<article class="panel"><h3>${titulo}</h3><ul class="limpia">${lista.filter((i) => i.etapa === e).map(itemCompra).join('')}</ul></article>`).join('')}
+  ${CATEGORIAS.map((cat) => {
+    const items = lista.filter((e) => e.cat === cat.id);
+    if (!items.length) return '';
+    return `<article class="panel"><h3>${cat.nombre}</h3><ul class="limpia">${items.map((e) => {
+      const renovar = registro(e.id).tengo;
+      const url = e.buscar ? `https://listado.mercadolibre.com.ar/${encodeURIComponent(e.buscar.replace(/\s+/g, '-'))}` : null;
+      const sug = sugerencia(e);
+      return `<li class="compra solo"><div class="compra-cuerpo">
+        <span><b>${esc(e.nombre)}</b>${renovar ? ' <span class="chip renovar">Para renovar</span>' : ''}</span>
+        ${sug ? `<span class="compra-cant">${esc(sug)}</span>` : ''}
+        <div class="compra-fila">
+          <input type="number" inputmode="numeric" min="0" step="1" placeholder="Precio $" data-precio="${e.id}" value="${estado.compras[e.id]?.precio ?? ''}" aria-label="Precio de ${esc(e.nombre)}">
+          ${url ? `<a href="${url}" target="_blank" rel="noopener">Buscar en Mercado Libre ↗</a>` : '<span class="nota">En la farmacia o a mano</span>'}
+          <button type="button" class="boton chico" data-accion="ya-lo-tengo" data-id="${e.id}">Ya lo tengo</button>
+        </div>
+      </div></li>`;
+    }).join('')}</ul></article>`;
+  }).join('')}
   <div class="panel">
     <h3>Comprar en grupo</h3>
-    <p>Lo caro se comparte y al mayorista sale más barato. Copiá lo que falta y pasáselo a tus vecinos.</p>
-    <div class="fila"><button type="button" class="boton primario" data-accion="copiar-compras">Copiar lo que falta</button></div>
+    <p>Lo caro se comparte y al mayorista sale más barato. Copiá la lista y pasásela a tu red.</p>
+    <div class="fila"><button type="button" class="boton primario" data-accion="copiar-compras">Copiar la lista</button><a class="boton" href="#red">Ir a mi red</a></div>
   </div>`;
 }
 async function copiarCompras() {
-  const pendientes = listaCompras().filter((it) => !estado.compras[it.id]?.comprado);
-  const texto = `Lista de compras para emergencias:\n${pendientes.map((it) => `- ${it.nombre}: ${it.cant}`).join('\n')}`;
-  try {
-    await navigator.clipboard.writeText(texto);
-    aviso('Lista copiada. Pegala en el grupo de vecinos.');
-  } catch (e) {
+  const texto = `Lista de compras para estar preparados:\n${faltantes().map((e) => `- ${e.nombre}`).join('\n')}`;
+  try { await navigator.clipboard.writeText(texto); aviso('Lista copiada'); }
+  catch (e) {
     if (navigator.share) { try { await navigator.share({ text: texto }); } catch (err) { /* cancelado */ } }
     else aviso('No se pudo copiar en este navegador');
   }
 }
 
-/* ---------- plan ---------- */
+/* ---------- plan y hoja ---------- */
 function verPlan() {
-  const pl = estado.plan, ints = estado.integrantes, c = condiciones();
-  const amenazas = PROTOCOLOS.filter((pr) => pr.id !== 'pas' && (!pr.zona || c[pr.zona]));
+  const pl = estado.plan, ints = estado.integrantes;
   const texto = (k, etiqueta, ph) => `<label class="campo">${etiqueta}<input type="text" data-campo="plan.${k}" value="${esc(pl[k])}" placeholder="${ph}" maxlength="120"></label>`;
   return `
-  ${cabeza('Módulo 5', 'Mi plan', 'Dónde se encuentran, por dónde salen y quién hace qué. Una orden concreta para cada uno, como en el PAS: si se le dice "a alguien", nadie lo hace.')}
+  ${cabeza('Módulo 5', 'Mi plan', 'Dónde se encuentran, por dónde salen y quién hace qué. Una tarea concreta para cada persona, como en el PAS.')}
   <div class="panel">
     <h3>Dónde nos encontramos</h3>
     ${texto('encuentro', 'Punto de encuentro cerca de casa', 'Ej.: la esquina de la plaza')}
@@ -632,39 +611,29 @@ function verPlan() {
   </div>
   <div class="panel">
     <h3>Quién hace qué</h3>
-    ${ints.length ? ROLES_PLAN.map((rol, n) => `<label class="campo">${rol}<select data-rol="${n}"><option value="">Sin asignar</option>${ints.map((i) => `<option value="${i.id}" ${pl.roles[n] === i.id ? 'selected' : ''}>${esc(i.nombre)}</option>`).join('')}</select></label>`).join('') : '<p class="nota">Primero sumá a los integrantes en <a href="#necesidades">Mis necesidades</a>.</p>'}
+    ${ints.length ? ROLES_PLAN.map((rol, n) => `<label class="campo">${rol}<select data-rol="${n}"><option value="">Sin asignar</option>${ints.map((i) => `<option value="${i.id}" ${pl.roles[n] === i.id ? 'selected' : ''}>${esc(i.nombre)}</option>`).join('')}</select></label>`).join('') : '<p class="nota">Primero sumá a las personas en <a href="#hogar">Mi hogar</a>.</p>'}
   </div>
   <div class="panel">
-    <h3>Contactos clave</h3>
-    <p class="nota">Alguien fuera del barrio a quien todos avisan, y los teléfonos que no pueden faltar.</p>
-    ${pl.contactos.length ? `<ul class="limpia">${pl.contactos.map((ct) => `<li class="fila" style="justify-content:space-between"><span><b>${esc(ct.nombre)}</b> · ${esc(ct.tel)}${ct.rel ? ` · ${esc(ct.rel)}` : ''}</span><button type="button" class="boton chico" data-accion="quitar-contacto" data-id="${ct.id}">Quitar</button></li>`).join('')}</ul>` : ''}
-    <form class="dos" data-form="sumar-contacto" autocomplete="off">
-      <label class="campo">Nombre<input type="text" name="nombre" required maxlength="40"></label>
-      <label class="campo">Teléfono<input type="tel" name="tel" required maxlength="30"></label>
-      <label class="campo">Quién es<input type="text" name="rel" maxlength="40" placeholder="Ej.: tía, vecina, médica"></label>
-      <button type="submit" class="boton" style="align-self:end">Sumar contacto</button>
-    </form>
-  </div>
-  <div class="panel">
-    <h3>Amenazas de tu zona</h3>
-    <ul class="puntos">${amenazas.map((a) => `<li><span>${a.nombre}</span></li>`).join('')}</ul>
-    <p class="nota">Salen de lo que marcaste en <a href="#necesidades">Mis necesidades</a>. Los protocolos van en la hoja y en el <a href="#emergencia">Modo emergencia</a>.</p>
+    <h3>A quién avisar</h3>
+    <p>Los contactos para avisar están en tu <a href="#red">Red</a> (${plural(estado.red.length, 'contacto', 'contactos')}).</p>
   </div>
   <div class="fila"><a class="boton primario" href="#hoja">Ver la hoja para imprimir</a></div>`;
 }
 function verHoja() {
-  const pl = estado.plan, ints = estado.integrantes, c = condiciones();
-  const amenazas = PROTOCOLOS.filter((pr) => !pr.zona || c[pr.zona]);
+  const pl = estado.plan, ints = estado.integrantes;
   const nombreDe = (id) => esc(ints.find((i) => i.id === id)?.nombre || '');
+  const dir = direccionTexto();
   return `
   <div class="fila no-imprimir"><a class="boton" href="#plan">Volver</a><button type="button" class="boton primario" data-accion="imprimir">Imprimir</button></div>
   <article class="hoja">
-    <h2>Plan familiar de emergencia</h2>
-    <p>Actualizado el ${fechaCorta(hoy())}. Pegalo en la heladera y guardá una copia en la carpeta.</p>
-    <h3>Integrantes</h3>
+    <h2>Plan familiar</h2>
+    <p>Actualizado el ${fechaCorta(hoy())}. Para la heladera y para la carpeta.</p>
+    <h3>Dónde vivimos</h3>
+    <p>${esc(dir) || '—'}${estado.hogar.referencia ? `<br>${esc(estado.hogar.referencia)}` : ''}</p>
+    <h3>Quiénes somos</h3>
     <div class="hoja-caja"><table>
-      <thead><tr><th>Nombre</th><th>Grupo</th><th>Alergias</th><th>Medicación</th><th>Contacto</th></tr></thead>
-      <tbody>${ints.map((i) => `<tr><td>${esc(i.nombre)}${i.electro ? ' (electrodependiente)' : ''}</td><td>${esc(i.grupo)}</td><td>${esc(i.alergias)}</td><td>${esc(i.medicacion)}</td><td>${esc(i.contacto)}</td></tr>`).join('') || '<tr><td colspan="5">Sin integrantes cargados</td></tr>'}</tbody>
+      <thead><tr><th>Nombre</th><th>Edad</th><th>Grupo</th><th>Observaciones</th><th>Alergias y medicación</th><th>Contacto</th></tr></thead>
+      <tbody>${ints.map((i) => `<tr><td>${esc(i.nombre)}</td><td>${esc(i.edad)}</td><td>${esc(i.grupo)}</td><td>${i.obs.map((o) => esc(nombreObs(o))).join(', ')}</td><td>${[i.alergias, i.medicacion].filter(Boolean).map(esc).join(' · ')}</td><td>${esc(i.contacto)}</td></tr>`).join('') || '<tr><td colspan="6">Sin personas cargadas</td></tr>'}</tbody>
     </table></div>
     <h3>Dónde nos encontramos</h3>
     <p><b>Cerca de casa:</b> ${esc(pl.encuentro) || '—'}<br><b>Fuera del barrio:</b> ${esc(pl.encuentroAlt) || '—'}</p>
@@ -673,10 +642,69 @@ function verHoja() {
     <ul>${ROLES_PLAN.map((r, n) => `<li>${r}: <b>${nombreDe(pl.roles[n]) || 'sin asignar'}</b></li>`).join('')}</ul>
     <h3>Teléfonos</h3>
     <p>${NUMEROS.map((n) => `${n.nombre}: <b>${n.num}</b>`).join(' · ')}</p>
-    ${pl.contactos.length ? `<p>${pl.contactos.map((ct) => `${esc(ct.nombre)}${ct.rel ? ` (${esc(ct.rel)})` : ''}: <b>${esc(ct.tel)}</b>`).join(' · ')}</p>` : ''}
+    ${estado.red.length ? `<p>${estado.red.map((c) => `${esc(c.nombre)}: <b>${esc(c.tel)}</b>`).join(' · ')}</p>` : ''}
     <h3>Qué hacer</h3>
-    ${amenazas.map((a) => `<p><b>${a.nombre}.</b> ${a.pasos.slice(0, 4).join(' ')}</p>`).join('')}
+    ${PROTOCOLOS.map((a) => `<p><b>${a.nombre}.</b> ${a.pasos.slice(0, 4).join(' ')}</p>`).join('')}
   </article>`;
+}
+
+/* ---------- red ---------- */
+let filtroRed = 'todos';
+let msgSel = 'consulta';
+const nombreGrupo = (id) => GRUPOS_RED.find((g) => g.id === id)?.nombre || 'Otros';
+function verRed() {
+  const lista = estado.red.filter((c) => filtroRed === 'todos' || c.grupo === filtroRed);
+  const agenda = 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts;
+  return `
+  ${cabeza('Módulo 6', 'Red', 'Las personas con las que te organizás: familia, vecinos, la brigada. No es una red social: es tu lista de contactos para escribirles directo por WhatsApp o por mensaje de texto.')}
+  <div class="panel">
+    <h3>Mensaje</h3>
+    <label class="campo">Elegí un mensaje armado<select data-mensaje-sel>${MENSAJES.map((m) => `<option value="${m.id}" ${m.id === msgSel ? 'selected' : ''}>${m.nombre}</option>`).join('')}</select></label>
+    <label class="campo">Texto (lo podés cambiar)<textarea id="mensaje-red" maxlength="500">${esc(textoMensaje(msgSel))}</textarea></label>
+    <div class="fila"><button type="button" class="boton primario" data-accion="mensaje-grupo" data-via="wa">Mandar a un grupo de WhatsApp</button><button type="button" class="boton" data-accion="mensaje-grupo" data-via="sms">Por SMS</button></div>
+  </div>
+  <div class="tipos" role="group" aria-label="Filtrar contactos">
+    ${[{ id: 'todos', nombre: 'Todos' }, ...GRUPOS_RED].map((g) => `<button type="button" data-accion="filtro-red" data-grupo="${g.id}" aria-pressed="${g.id === filtroRed}">${g.nombre}</button>`).join('')}
+  </div>
+  <div class="panel">
+    <h3>Contactos (${lista.length})</h3>
+    ${lista.length ? `<ul class="limpia">${lista.map((c) => `<li class="contacto">
+      <div class="contacto-datos"><b>${esc(c.nombre)}</b> <span class="chip">${nombreGrupo(c.grupo)}</span>${c.barrio ? `<span class="nota">${esc(c.barrio)}</span>` : ''}${c.nota ? `<span class="nota">${esc(c.nota)}</span>` : ''}<span class="nota">${esc(c.tel)}</span></div>
+      <div class="contacto-acciones">
+        <button type="button" class="boton chico primario" data-accion="mensaje" data-via="wa" data-id="${c.id}">WhatsApp</button>
+        <button type="button" class="boton chico" data-accion="mensaje" data-via="sms" data-id="${c.id}">SMS</button>
+        <a class="boton chico" href="tel:${esc(String(c.tel).replace(/[^\d+]/g, ''))}">Llamar</a>
+        <button type="button" class="boton chico peligro" data-accion="quitar-contacto" data-id="${c.id}">Quitar</button>
+      </div>
+    </li>`).join('')}</ul>` : `<p class="nota">${estado.red.length ? 'No hay contactos en este grupo.' : 'Todavía no sumaste a nadie. Empezá por quien vive más cerca.'}</p>`}
+  </div>
+  <div class="panel">
+    <h3>Sumar un contacto</h3>
+    <form class="dos" data-form="sumar-contacto" autocomplete="off">
+      <label class="campo">Nombre<input type="text" name="nombre" required maxlength="40"></label>
+      <label class="campo">Teléfono<input type="tel" name="tel" required maxlength="30" placeholder="Con código de área: 11 2345 6789"></label>
+      <label class="campo">Grupo<select name="grupo">${GRUPOS_RED.map((g) => `<option value="${g.id}">${g.nombre}</option>`).join('')}</select></label>
+      <label class="campo">Barrio o cuadra<input type="text" name="barrio" maxlength="60" placeholder="Opcional"></label>
+      <label class="campo">Nota<input type="text" name="nota" maxlength="80" placeholder="Ej.: tiene generador, es enfermera"></label>
+      <div class="fila" style="align-self:end"><button type="submit" class="boton primario">Sumar</button>${agenda ? '<button type="button" class="boton" data-accion="elegir-contacto">Elegir de la agenda</button>' : ''}</div>
+    </form>
+  </div>`;
+}
+function mensajeActual() {
+  const t = document.getElementById('mensaje-red');
+  return (t && t.value.trim()) || textoMensaje(msgSel);
+}
+async function elegirContacto() {
+  try {
+    const [c] = await navigator.contacts.select(['name', 'tel'], { multiple: false });
+    if (!c) return;
+    const f = vista.querySelector('form[data-form="sumar-contacto"]');
+    f.nombre.value = (c.name && c.name[0]) || '';
+    f.tel.value = (c.tel && c.tel[0]) || '';
+    f.nombre.focus();
+  } catch (e) {
+    aviso('No se pudo abrir la agenda');
+  }
 }
 
 /* ---------- zona ---------- */
@@ -692,17 +720,17 @@ function linksCerca(c) {
 }
 function verZona() {
   const ms = estado.zona.marcadores;
+  const dir = linkMapsDireccion();
   return `
-  ${cabeza('Módulo 6', 'Mi zona', 'Marcá tu casa, el punto de encuentro, los riesgos (estaciones de servicio, transformadores, cables de alta tensión, calles que se inundan) y lo que sirve cerca. Elegí el tipo y tocá el mapa.')}
+  ${cabeza('Módulo 7', 'Mi zona', 'Marcá tu casa, el punto de encuentro, lo que conviene evitar (estaciones de servicio, transformadores, cables de alta tensión, calles que se inundan) y lo que sirve cerca. Elegí el tipo y tocá el mapa.')}
   <div class="panel">
     <div class="tipos" role="group" aria-label="Tipo de punto">${Object.entries(TIPOS_MARCADOR).map(([k, t]) => `<button type="button" data-accion="tipo-marcador" data-tipo="${k}" aria-pressed="${k === tipoMarcador}"><span class="punto" style="background:${t.color}"></span>${t.nombre}</button>`).join('')}</div>
     <div id="mapa" class="mapa" aria-label="Mapa de tu zona"></div>
-    <div class="fila"><button type="button" class="boton" data-accion="ubicarme">Ir a mi ubicación</button></div>
-    <p class="nota">El mapa necesita internet. Cuando lo tengas armado, sacale una captura para tenerla en la emergencia.</p>
+    <div class="fila"><button type="button" class="boton" data-accion="ubicarme">Ir a mi ubicación</button>${dir ? `<a class="boton" href="${dir}" target="_blank" rel="noopener">Mi dirección en Google Maps ↗</a>` : ''}</div>
+    <p class="nota">El mapa necesita internet. Cuando lo tengas armado, sacale una captura para tenerla a mano.</p>
   </div>
   <div class="panel">
     <h3>Buscar cerca en Google Maps</h3>
-    <p class="nota">Abre Google Maps alrededor del centro del mapa.</p>
     <div class="fila" id="busquedas">${linksCerca(centroActual())}</div>
   </div>
   <div class="panel">
@@ -759,9 +787,9 @@ function abrirMarcador(latlng) {
   const t = TIPOS_MARCADOR[tipoMarcador];
   dialogo.innerHTML = `
   <form data-dialogo="marcador" data-lat="${latlng.lat}" data-lng="${latlng.lng}">
-    <h2 id="dialogo-titulo" style="font-size:30px">Nuevo punto</h2>
+    <h2 id="dialogo-titulo">Nuevo punto</h2>
     <label class="campo">Tipo<select name="tipo">${Object.entries(TIPOS_MARCADOR).map(([k, v]) => `<option value="${k}" ${k === tipoMarcador ? 'selected' : ''}>${v.nombre}</option>`).join('')}</select></label>
-    <label class="campo">Nombre<input type="text" name="nombre" required maxlength="60" placeholder="${tipoMarcador === 'riesgo' ? 'Ej.: transformador de la esquina' : tipoMarcador === 'recurso' ? 'Ej.: generador de Juan' : `Ej.: ${t.nombre.toLowerCase()}`}"></label>
+    <label class="campo">Nombre<input type="text" name="nombre" required maxlength="60" placeholder="Ej.: ${t.nombre.toLowerCase()}"></label>
     <label class="campo">Nota<input type="text" name="nota" maxlength="140" placeholder="Opcional"></label>
     <div class="fila"><button type="submit" class="boton primario">Guardar punto</button><button type="button" class="boton" data-cerrar>Cancelar</button></div>
   </form>`;
@@ -780,12 +808,11 @@ function ubicarme() {
 function verTutoriales() {
   const yt = (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
   return `
-  ${cabeza('Módulo 7', 'Tutoriales', 'Búsquedas armadas por tema para aprender lo que no sabés hacer. Todavía no están curadas: elegí videos de fuentes confiables, como bomberos, Cruz Roja o Defensa Civil. Primeros auxilios se practica en persona.')}
+  ${cabeza('Módulo 8', 'Tutoriales', 'Búsquedas armadas por tema para aprender lo que no sabés hacer. Todavía no están curadas: elegí videos de fuentes confiables, como bomberos, Cruz Roja o Defensa Civil. Primeros auxilios se practica en persona.')}
   <div class="panel"><h3>El curso</h3><ul class="puntos">${CURSO.map((v) => `<li><a href="${v.url}" target="_blank" rel="noopener">${v.titulo} ↗</a></li>`).join('')}</ul></div>
-  <div class="modulos" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))">
+  <div class="modulos">
     ${TUTORIALES.map((t) => `<article class="panel"><h3>${t.tema}</h3><ul class="puntos">${t.items.map((q) => `<li><a href="${yt(q)}" target="_blank" rel="noopener">${q.charAt(0).toUpperCase() + q.slice(1)} ↗</a></li>`).join('')}</ul></article>`).join('')}
-  </div>
-  <p class="nota">Más adelante: videos elegidos y descargables para verlos sin señal.</p>`;
+  </div>`;
 }
 
 /* ---------- emergencia ---------- */
@@ -795,8 +822,9 @@ let bloqueoPantalla = null;
 function verEmergencia() {
   const pl = estado.plan, ints = estado.integrantes;
   const pr = PROTOCOLOS.find((p) => p.id === protoSel) || PROTOCOLOS[0];
+  const dir = direccionTexto();
   return `
-  ${cabeza('Modo emergencia', 'Calma. Paso a paso.', 'Todo lo de esta pantalla funciona sin internet.')}
+  ${cabeza('SOS', 'Calma. Paso a paso.', 'La linterna, el silbato, los teléfonos, los pasos y las fichas funcionan sin internet.')}
   <div class="pads">
     <button type="button" class="pad" data-accion="linterna"><span class="pad-boton" aria-hidden="true"></span>Luz</button>
     <span class="rejilla" aria-hidden="true"></span>
@@ -805,15 +833,23 @@ function verEmergencia() {
   <div class="panel">
     <h3>Llamar</h3>
     <div class="numeros">${NUMEROS.map((n) => `<a class="numero" href="tel:${n.num}"><b>${n.num}</b><span>${n.nombre}</span></a>`).join('')}</div>
-    <p class="nota">Verificá los números de tu localidad, como el del cuartel de bomberos más cercano. Si no hay señal, andá en persona al cuartel o a una clínica.</p>
+    <p class="nota">Verificá los números de tu localidad. Si no hay señal, andá en persona al cuartel de bomberos o a una clínica.</p>
+  </div>
+  ${dir ? `<div class="panel"><h3>Dónde estamos</h3><p class="direccion-grande">${esc(dir)}</p>${estado.hogar.referencia ? `<p class="nota">${esc(estado.hogar.referencia)}</p>` : ''}<p class="nota">Para decirlo si llamás.</p></div>` : ''}
+  <div class="panel">
+    <h3>Avisar a tu red</h3>
+    <div class="avisos">
+      ${['bien', 'ayuda'].map((id) => `<div class="fila"><span class="aviso-nombre">${MENSAJES.find((m) => m.id === id).nombre}</span><button type="button" class="boton chico primario" data-accion="avisar" data-msg="${id}" data-via="wa">WhatsApp</button><button type="button" class="boton chico" data-accion="avisar" data-msg="${id}" data-via="sms">SMS</button></div>`).join('')}
+    </div>
+    <p class="nota">WhatsApp necesita internet; el SMS solo necesita señal. Tus contactos están en <a href="#red">Red</a>.</p>
   </div>
   ${pl.encuentro || pl.encuentroAlt ? `<div class="panel"><h3>Punto de encuentro</h3><p><b>${esc(pl.encuentro) || '—'}</b></p>${pl.encuentroAlt ? `<p class="nota">Alternativo: ${esc(pl.encuentroAlt)}</p>` : ''}</div>` : ''}
   <div class="panel">
     <h3>Qué hacer</h3>
-    <div class="protocolos-botones" role="group" aria-label="Elegí la emergencia">${PROTOCOLOS.map((p) => `<button type="button" data-accion="protocolo" data-id="${p.id}" aria-pressed="${p.id === pr.id}">${p.nombre}</button>`).join('')}</div>
+    <div class="protocolos-botones" role="group" aria-label="Elegí la situación">${PROTOCOLOS.map((p) => `<button type="button" data-accion="protocolo" data-id="${p.id}" aria-pressed="${p.id === pr.id}">${p.nombre}</button>`).join('')}</div>
     <ol class="orden">${pr.pasos.map((s) => `<li><span>${s}</span></li>`).join('')}</ol>
   </div>
-  ${ints.length ? `<div class="panel"><h3>Fichas médicas</h3><ul class="limpia">${ints.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b> · grupo ${esc(i.grupo) || '—'}<br><span class="nota">Alergias: ${esc(i.alergias) || '—'} · Medicación: ${esc(i.medicacion) || '—'}${i.contacto ? ` · Tel.: ${esc(i.contacto)}` : ''}</span></span><span></span></li>`).join('')}</ul></div>` : ''}`;
+  ${ints.length ? `<div class="panel"><h3>Fichas</h3><ul class="limpia">${ints.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b>${edadTexto(i)} · grupo ${esc(i.grupo) || '—'}<br><span class="nota">${i.obs.length ? `${i.obs.map((o) => esc(nombreObs(o))).join(', ')} · ` : ''}Alergias: ${esc(i.alergias) || '—'} · Medicación: ${esc(i.medicacion) || '—'}${i.contacto ? ` · Tel.: ${esc(i.contacto)}` : ''}</span></span><span></span></li>`).join('')}</ul></div>` : ''}`;
 }
 async function prenderLinterna() {
   linterna.hidden = false;
@@ -839,7 +875,6 @@ function alternarSilbato() {
     o.frequency.value = 3100;
     o.connect(g);
     o.start();
-    // tres pitidos y una pausa, en loop
     const tanda = () => {
       const t0 = ctx.currentTime + 0.05;
       for (let i = 0; i < 3; i++) { g.gain.setValueAtTime(0.35, t0 + i * 0.75); g.gain.setValueAtTime(0, t0 + i * 0.75 + 0.45); }
@@ -903,18 +938,20 @@ function importar(archivo) {
    Rutas y eventos
    ========================================================= */
 const VISTAS = {
-  inicio: verInicio, necesidades: verNecesidades, familia: verFamilia, checklists: verChecklists,
-  compras: verCompras, plan: verPlan, hoja: verHoja, zona: verZona, tutoriales: verTutoriales,
+  inicio: verInicio, hogar: verHogar, familia: verFamilia, inventario: verInventario, compras: verCompras,
+  plan: verPlan, hoja: verHoja, red: verRed, zona: verZona, tutoriales: verTutoriales,
   emergencia: verEmergencia, ajustes: verAjustes
 };
-const MONTAR = {
-  checklists: montarChecklists,
-  zona: montarZona
-};
-const NAV = { hoja: 'plan', necesidades: 'inicio', compras: 'inicio', zona: 'inicio', tutoriales: 'inicio', ajustes: 'inicio' };
+const ALIAS = { necesidades: 'hogar', checklists: 'inventario' };
+const MONTAR = { inventario: montarInventario, zona: montarZona };
+const NAV = { hogar: 'inicio', plan: 'inicio', hoja: 'inicio', compras: 'inventario', zona: 'inicio', tutoriales: 'inicio', ajustes: 'inicio' };
 let limpiar = [];
 
-function rutaActual() { const r = location.hash.slice(1); return VISTAS[r] ? r : 'inicio'; }
+function rutaActual() {
+  let r = location.hash.slice(1);
+  r = ALIAS[r] || r;
+  return VISTAS[r] ? r : 'inicio';
+}
 function render(arriba) {
   limpiar.forEach((f) => { try { f(); } catch (e) { /* nada */ } });
   limpiar = [];
@@ -927,7 +964,8 @@ function render(arriba) {
     if (a.dataset.ruta === activa) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
-  document.getElementById('reloj').textContent = estado.hogar.meta === 14 ? '14 DÍAS' : '72:00 HS';
+  const h = new Date();
+  document.getElementById('reloj').textContent = `${dos(h.getDate())}/${dos(h.getMonth() + 1)}/${String(h.getFullYear()).slice(2)}`;
   if (arriba) { window.scrollTo(0, 0); vista.focus({ preventScroll: true }); }
   if (MONTAR[r]) MONTAR[r]();
 }
@@ -936,10 +974,11 @@ function refrescar() {
   const a = document.activeElement;
   let selector = null;
   if (a && vista.contains(a)) {
-    for (const k of ['check', 'compra', 'campo', 'accion']) {
+    for (const k of ['tengo', 'cantidad', 'vence', 'precio', 'campo', 'accion']) {
       if (a.dataset[k] !== undefined) {
         selector = `[data-${k}="${CSS.escape(a.dataset[k])}"]`;
         if (a.dataset.id) selector += `[data-id="${CSS.escape(a.dataset.id)}"]`;
+        if (a.dataset.via) selector += `[data-via="${CSS.escape(a.dataset.via)}"]`;
         if (a.type === 'radio') selector += `[value="${CSS.escape(a.value)}"]`;
         break;
       }
@@ -952,16 +991,34 @@ function refrescar() {
 window.addEventListener('hashchange', () => render(true));
 
 const ACCIONES = {
-  'perilla-meta': () => { estado.hogar.meta = estado.hogar.meta === 14 ? 3 : 14; guardar(); refrescar(); aviso(estado.hogar.meta === 14 ? 'Meta: 2 semanas' : 'Meta: 72 horas'); },
+  tengo: (b) => { alternarTengo(b.dataset.id, !registro(b.dataset.id).tengo); refrescar(); },
   'quitar-integrante': (b) => confirmar(b, () => quitarIntegrante(b.dataset.id)),
   'editar-integrante': (b) => abrirEdicion(b.dataset.id),
   'elegir-integrante': (b) => { familiaSel = b.dataset.id; refrescar(); },
-  'ir-cat': (b, e) => { e.preventDefault(); irACat = b.dataset.cat; if (location.hash === '#checklists') render(true); else location.hash = 'checklists'; },
-  renovar: (b) => { estado.checks[b.dataset.id] = { hecho: true, fecha: hoy() }; guardar(); refrescar(); aviso('Renovado: el contador arranca de nuevo'); },
-  revision: () => { estado.revision.ultima = hoy(); guardar(); refrescar(); aviso('Revisión anotada. La próxima, en 3 meses.'); },
+  'ir-cat': (b, e) => { e.preventDefault(); irACat = b.dataset.cat; if (location.hash === '#inventario') render(true); else location.hash = 'inventario'; },
+  'quitar-extra': (b) => confirmar(b, () => { estado.extras = estado.extras.filter((x) => x.id !== b.dataset.id); delete estado.inventario[b.dataset.id]; guardar(); refrescar(); }),
+  'ya-lo-tengo': (b) => { const r = registro(b.dataset.id); estado.inventario[b.dataset.id] = { ...r, tengo: true, desde: hoy(), vence: null }; guardar(); refrescar(); aviso('Pasó al inventario'); },
+  revision: () => { estado.revision.ultima = hoy(); guardar(); refrescar(); aviso('Repaso anotado'); },
   'copiar-compras': () => copiarCompras(),
-  'quitar-contacto': (b) => { estado.plan.contactos = estado.plan.contactos.filter((c) => c.id !== b.dataset.id); guardar(); refrescar(); },
   imprimir: () => window.print(),
+  'filtro-red': (b) => { filtroRed = b.dataset.grupo; refrescar(); },
+  'quitar-contacto': (b) => confirmar(b, () => { estado.red = estado.red.filter((c) => c.id !== b.dataset.id); guardar(); refrescar(); }),
+  mensaje: (b) => {
+    const c = estado.red.find((x) => x.id === b.dataset.id);
+    if (!c) return;
+    const texto = encodeURIComponent(mensajeActual());
+    if (b.dataset.via === 'wa') abrirExterno(`https://wa.me/${telWhatsapp(c.tel)}?text=${texto}`);
+    else abrirExterno(`sms:${String(c.tel).replace(/[^\d+]/g, '')}?&body=${texto}`);
+  },
+  'mensaje-grupo': (b) => {
+    const texto = encodeURIComponent(mensajeActual());
+    abrirExterno(b.dataset.via === 'wa' ? `https://wa.me/?text=${texto}` : `sms:?&body=${texto}`);
+  },
+  avisar: (b) => {
+    const texto = encodeURIComponent(textoMensaje(b.dataset.msg));
+    abrirExterno(b.dataset.via === 'wa' ? `https://wa.me/?text=${texto}` : `sms:?&body=${texto}`);
+  },
+  'elegir-contacto': () => elegirContacto(),
   'tipo-marcador': (b) => {
     tipoMarcador = b.dataset.tipo;
     vista.querySelectorAll('[data-accion="tipo-marcador"]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
@@ -972,15 +1029,15 @@ const ACCIONES = {
   silbato: () => alternarSilbato(),
   protocolo: (b) => { protoSel = b.dataset.id; refrescar(); },
   exportar: () => exportar(),
-  'borrar-todo': (b) => confirmar(b, () => { estado = base(); familiaSel = null; guardar(); aviso('Se borró todo'); location.hash = 'inicio'; render(true); })
+  'borrar-todo': (b) => confirmar(b, () => { estado = normalizar(null); familiaSel = null; guardar(); aviso('Se borró todo'); location.hash = 'inicio'; render(true); })
 };
 const FORMULARIOS = {
   'sumar-integrante': (f) => {
     const nombre = f.nombre.value.trim();
     if (!nombre) { aviso('Escribí un nombre'); return; }
-    const i = { id: uid(), nombre, tipo: f.tipo.value, grupo: '', alergias: '', medicacion: '', obraSocial: '', contacto: '', notas: '', electro: false, mochila: '' };
+    const edad = f.edad.value === '' ? '' : Math.max(0, Math.min(120, Math.round(Number(f.edad.value))));
+    const i = { id: uid(), nombre, tipo: f.tipo.value, edad, obs: [], grupo: '', alergias: '', medicacion: '', obraSocial: '', contacto: '', notas: '', mochila: '' };
     estado.integrantes.push(i);
-    estado.hogar.configurado = true;
     familiaSel = i.id;
     guardar();
     refrescar();
@@ -990,9 +1047,20 @@ const FORMULARIOS = {
   'sumar-contacto': (f) => {
     const nombre = f.nombre.value.trim(), tel = f.tel.value.trim();
     if (!nombre || !tel) return;
-    estado.plan.contactos.push({ id: uid(), nombre, tel, rel: f.rel.value.trim() });
+    estado.red.push({ id: uid(), nombre, tel, grupo: f.grupo.value, barrio: f.barrio.value.trim(), nota: f.nota.value.trim() });
     guardar();
     refrescar();
+    aviso(`${nombre} se sumó a tu red`);
+  },
+  'sumar-extra': (f) => {
+    const nombre = f.nombre.value.trim();
+    if (!nombre) return;
+    const id = `x-${uid()}`;
+    estado.extras.push({ id, nombre, cat: f.cat.value, unidad: 'u.' });
+    estado.inventario[id] = { tengo: true, cantidad: null, vence: null, desde: hoy() };
+    guardar();
+    refrescar();
+    aviso(`${nombre} se sumó al inventario`);
   }
 };
 const DIALOGOS = {
@@ -1002,9 +1070,11 @@ const DIALOGOS = {
     const nombre = f.nombre.value.trim();
     if (!nombre) { aviso('Escribí un nombre'); return; }
     Object.assign(i, {
-      nombre, tipo: f.tipo.value, grupo: f.grupo.value, contacto: f.contacto.value.trim(), obraSocial: f.obraSocial.value.trim(),
-      mochila: f.mochila.value, alergias: f.alergias.value.trim(), medicacion: f.medicacion.value.trim(), notas: f.notas.value.trim(), electro: f.electro.checked
+      nombre, tipo: f.tipo.value, edad: f.edad.value === '' ? '' : Math.max(0, Math.min(120, Math.round(Number(f.edad.value)))),
+      grupo: f.grupo.value, contacto: f.contacto.value.trim(), obraSocial: f.obraSocial.value.trim(), mochila: f.mochila.value,
+      obs: [...obsEdicion], alergias: f.alergias.value.trim(), medicacion: f.medicacion.value.trim(), notas: f.notas.value.trim()
     });
+    delete i.electro;
     guardar();
     dialogo.close();
     refrescar();
@@ -1035,29 +1105,31 @@ vista.addEventListener('submit', (e) => {
 });
 vista.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.dataset.check) {
-    if (t.checked) estado.checks[t.dataset.check] = { hecho: true, fecha: hoy() };
-    else delete estado.checks[t.dataset.check];
-    guardar(); refrescar(); return;
+  if (t.dataset.tengo) { alternarTengo(t.dataset.tengo, t.checked); refrescar(); return; }
+  if (t.dataset.cantidad) {
+    const v = t.value === '' ? null : Math.max(0, Number(t.value));
+    estado.inventario[t.dataset.cantidad] = { ...registro(t.dataset.cantidad), cantidad: Number.isFinite(v) ? v : null };
+    guardar();
+    if (t.dataset.cantidad === 'agua-litros') { const n = document.getElementById('nota-agua'); if (n) n.textContent = notaAgua(registro('agua-litros')); }
+    return;
   }
-  if (t.dataset.compra) {
-    estado.compras[t.dataset.compra] = { ...(estado.compras[t.dataset.compra] || {}), comprado: t.checked };
-    guardar(); refrescar(); return;
-  }
+  if (t.dataset.vence) { estado.inventario[t.dataset.vence] = { ...registro(t.dataset.vence), vence: t.value || null }; guardar(); refrescar(); return; }
   if (t.dataset.precio) {
     const v = t.value === '' ? null : Math.max(0, Number(t.value));
     estado.compras[t.dataset.precio] = { ...(estado.compras[t.dataset.precio] || {}), precio: Number.isFinite(v) ? v : null };
     guardar();
     const el = document.getElementById('falta-gastar');
-    if (el) el.textContent = pesos(faltaGastar(listaCompras()));
+    if (el) el.textContent = pesos(faltaGastar(faltantes()));
     return;
   }
   if (t.dataset.rol !== undefined) { estado.plan.roles[t.dataset.rol] = t.value; guardar(); return; }
+  if (t.dataset.mensajeSel !== undefined) { msgSel = t.value; const ta = document.getElementById('mensaje-red'); if (ta) ta.value = textoMensaje(msgSel); return; }
   if (t.dataset.importar !== undefined) { importar(t.files[0]); t.value = ''; return; }
   if (t.dataset.campo) {
-    const v = t.type === 'checkbox' ? t.checked : (t.dataset.num !== undefined ? Number(t.value) : t.value);
+    const v = t.type === 'checkbox' ? t.checked : t.value;
     setRuta(estado, t.dataset.campo, v);
     guardar();
+    if (t.dataset.campo.startsWith('hogar.')) actualizarLinkDireccion();
     if (t.type === 'checkbox' || t.type === 'radio') refrescar();
   }
 });
@@ -1067,8 +1139,16 @@ dialogo.addEventListener('submit', (e) => {
   e.preventDefault();
   DIALOGOS[f.dataset.dialogo]?.(f);
 });
+dialogo.addEventListener('change', (e) => {
+  const s = e.target.closest('[data-obs-select]');
+  if (!s || !s.value) return;
+  if (!obsEdicion.includes(s.value)) obsEdicion.push(s.value);
+  redibujarObs();
+});
 dialogo.addEventListener('click', (e) => {
   if (e.target.closest('[data-cerrar]')) { dialogo.close(); return; }
+  const o = e.target.closest('[data-obs-quitar]');
+  if (o) { obsEdicion = obsEdicion.filter((x) => x !== o.dataset.obsQuitar); redibujarObs(); return; }
   const q = e.target.closest('[data-quitar]');
   if (q) confirmar(q, () => { dialogo.close(); quitarIntegrante(q.dataset.quitar); });
 });
@@ -1089,4 +1169,5 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 
+guardar();
 render(true);

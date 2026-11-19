@@ -1,7 +1,6 @@
-// Contenido de la app. Todo sale del curso de preparacionismo comunitario
+// Barrio Listo V02: contenidos. Salen del curso de preparacionismo comunitario
 // (vivo del 29/10/2026 y clases del 4 y 6/11/2026). Validar con protección civil y salud.
-
-export const NOMBRE_APP = 'Barrio Listo';
+// Enfoque: organizarse y contar lo que hay, sin cuentas regresivas.
 
 export const TIPOS = {
   adulto: 'Adulto/a',
@@ -12,132 +11,137 @@ export const TIPOS = {
 
 export const GRUPOS = ['', '0+', '0-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'No sé'];
 
-// etapa: '72h' para arrancar, '14d' para la meta de dos semanas.
-// rotar: cada cuántos meses hay que revisarlo o renovarlo.
-// soloSi: el ítem aparece solo si el hogar tiene esa condición.
-export const CATEGORIAS = [
-  {
-    id: 'agua', nombre: 'Agua', icono: 'gota',
-    items: [
-      { id: 'agua-72', texto: 'Reserva de agua para 72 horas: 3 litros por persona por día (2 para tomar y cocinar, 1 para higiene).', etapa: '72h', rotar: 6 },
-      { id: 'agua-14', texto: 'Reserva de agua para 2 semanas.', etapa: '14d', rotar: 6 },
-      { id: 'agua-lavandina', texto: 'Lavandina "apta para desinfectar agua" (leer el rótulo: dura de 3 a 6 meses).', etapa: '72h', rotar: 6 },
-      { id: 'agua-saber', texto: 'Sabemos potabilizar: hervir fuerte 5 minutos (1 más cada 300 m de altura) o 2 gotas de lavandina por litro si tiene 50 g de cloro por litro.', etapa: '72h' },
-      { id: 'agua-filtro', texto: 'Un filtro: de mesada, bombilla con filtro o casero (piedra, arena y carbón activado). Después de filtrar, igual se hierve o se clora.', etapa: '14d' },
-      { id: 'agua-pastillas', texto: 'Pastillas potabilizadoras de reserva.', etapa: '14d' }
-    ]
-  },
-  {
-    id: 'carpeta', nombre: 'Carpeta y plata', icono: 'hoja',
-    items: [
-      { id: 'carpeta-armada', texto: 'Carpeta hermética, en altura y a mano: documentos, actas, recetas, alergias, grupo y factor de cada uno, analítico.', etapa: '72h', rotar: 3 },
-      { id: 'carpeta-digital', texto: 'Copia escaneada en un pendrive (zip con contraseña) y otra en la nube.', etapa: '72h', rotar: 3 },
-      { id: 'plata-efectivo', texto: 'Efectivo para 72 horas: si no hay luz ni señal, el QR no anda.', etapa: '72h' },
-      { id: 'plata-cuentas', texto: 'Una cuenta para el día a día y otra de reserva, en empresas distintas.', etapa: '14d' }
-    ]
-  },
-  {
-    id: 'botiquin', nombre: 'Botiquín', icono: 'cruz',
-    items: [
-      { id: 'botiquin-trauma', texto: 'Trauma: gasas, apósitos, vendas de tres anchos y cinta.', etapa: '72h', rotar: 12 },
-      { id: 'botiquin-antisepticos', texto: 'Antisépticos: yodo, solución fisiológica y jabón blanco.', etapa: '72h', rotar: 12 },
-      { id: 'botiquin-proteccion', texto: 'Protección de quien asiste: guantes, barbijo, antiparras y tijera de punta roma.', etapa: '72h' },
-      { id: 'botiquin-medicacion', texto: 'Medicación crónica para 2 a 4 semanas.', etapa: '72h', rotar: 3, soloSi: 'medicacion' },
-      { id: 'botiquin-manta', texto: 'Manta térmica y un pañuelo grande.', etapa: '72h' },
-      { id: 'botiquin-saber', texto: 'Sabemos la regla PAS: proteger, avisar, socorrer.', etapa: '72h' }
-    ]
-  },
-  {
-    id: 'comida', nombre: 'Comida', icono: 'lata',
-    items: [
-      { id: 'comida-72', texto: 'Comida que no necesita cocción para 72 horas.', etapa: '72h', rotar: 6 },
-      { id: 'comida-14', texto: 'Para 2 semanas: arroz y fideos, legumbres, latas (atún, caballa, sardinas), frutos secos y fruta deshidratada. Solo lo que la familia come.', etapa: '14d', rotar: 6 },
-      { id: 'comida-frascos', texto: 'Secos en frascos de vidrio con sello, rotulados con el vencimiento.', etapa: '14d' },
-      { id: 'comida-freezer', texto: 'Lista del freezer pegada por fuera, para no abrirlo en un corte.', etapa: '14d' },
-      { id: 'comida-bebe', texto: 'Pañales, leche y comida de bebé para 72 horas.', etapa: '72h', rotar: 3, soloSi: 'bebes' },
-      { id: 'comida-mascotas', texto: 'Agua y alimento para las mascotas.', etapa: '72h', soloSi: 'mascotas' }
-    ]
-  },
-  {
-    id: 'energia', nombre: 'Energía', icono: 'rayo',
-    items: [
-      { id: 'energia-linternas', texto: 'Linternas y pilas, una por persona. Las recargables se descargan solas: revisarlas.', etapa: '72h', rotar: 6 },
-      { id: 'energia-powerbank', texto: 'Power bank cargado. Ante una alerta, cargar todo.', etapa: '72h', rotar: 3 },
-      { id: 'energia-termica', texto: 'Sabemos bajar la térmica cuando se corta la luz.', etapa: '72h' },
-      { id: 'energia-ups', texto: 'UPS para el equipo de la persona electrodependiente.', etapa: '72h', soloSi: 'electro' },
-      { id: 'energia-dinamo', texto: 'Linterna a dínamo.', etapa: '14d' },
-      { id: 'energia-anafe', texto: 'Anafe de camping con garrafa, para hervir agua.', etapa: '14d' }
-    ]
-  },
-  {
-    id: 'comunicacion', nombre: 'Comunicación', icono: 'radio',
-    items: [
-      { id: 'com-papel', texto: 'Lista de teléfonos en papel.', etapa: '72h', rotar: 3 },
-      { id: 'com-sms', texto: 'El celular configurado para mandar SMS sin internet.', etapa: '72h' },
-      { id: 'com-radio', texto: 'Radio AM/FM a pilas: las radios locales avisan alertas y puntos de ayuda.', etapa: '72h' },
-      { id: 'com-silbato', texto: 'Un silbato, para avisar o si alguien queda atrapado.', etapa: '72h' },
-      { id: 'com-grupo', texto: 'Grupo de chat con los vecinos, como sistema de alerta.', etapa: '14d' }
-    ]
-  },
-  {
-    id: 'mochila', nombre: 'Mochilas', icono: 'mochila',
-    items: [
-      { id: 'mochila-una', texto: 'Una mochila de escape por persona, de no más del 15% del peso de quien la lleva.', etapa: '72h', rotar: 3 },
-      { id: 'mochila-contenido', texto: 'Adentro: agua y comida para 72 horas, botiquín, radio, power bank, linterna, navaja, bolsas y soga.', etapa: '72h' },
-      { id: 'mochila-carpeta', texto: 'La carpeta familiar va en la mochila de un adulto.', etapa: '72h' },
-      { id: 'mochila-practica', texto: 'Practicamos el "salí en 3 minutos".', etapa: '14d' }
-    ]
-  },
-  {
-    id: 'casa', nombre: 'Casa segura', icono: 'casa',
-    items: [
-      { id: 'casa-tablero', texto: 'Varios sabemos dónde están el tablero, el disyuntor y la llave del gas, y están señalizados.', etapa: '72h' },
-      { id: 'casa-encuentro', texto: 'Punto de encuentro y rutas de salida acordados.', etapa: '72h' },
-      { id: 'casa-herramientas', texto: 'Caja de herramientas básica: pinza, destornillador, martillo.', etapa: '14d' },
-      { id: 'casa-mantenimiento', texto: 'Desagües, canaletas y chapas en condiciones.', etapa: '14d', rotar: 6 },
-      { id: 'casa-muebles', texto: 'Muebles pesados fijados a la pared y espejos pegados.', etapa: '14d', soloSi: 'sismica' }
-    ]
-  }
+// Observaciones de cada integrante: se eligen varias y se suman como etiquetas.
+export const OBSERVACIONES = [
+  { id: 'motriz', nombre: 'Discapacidad motriz' },
+  { id: 'visual', nombre: 'Discapacidad visual' },
+  { id: 'auditiva', nombre: 'Discapacidad auditiva' },
+  { id: 'intelectual', nombre: 'Discapacidad intelectual' },
+  { id: 'movilidad', nombre: 'Movilidad reducida' },
+  { id: 'silla', nombre: 'Usa silla de ruedas' },
+  { id: 'lesion', nombre: 'Lesión' },
+  { id: 'cronica', nombre: 'Enfermedad crónica' },
+  { id: 'diabetes', nombre: 'Diabetes' },
+  { id: 'respiratorio', nombre: 'Problema respiratorio' },
+  { id: 'cardiaco', nombre: 'Problema cardíaco' },
+  { id: 'electro', nombre: 'Electrodependiente' },
+  { id: 'medicacion', nombre: 'Toma medicación diaria' },
+  { id: 'alergia', nombre: 'Alergias' },
+  { id: 'embarazo', nombre: 'Embarazo' },
+  { id: 'mental', nombre: 'Salud mental' },
+  { id: 'dieta', nombre: 'Dieta especial o celiaquía' },
+  { id: 'acompanamiento', nombre: 'Necesita acompañamiento permanente' },
+  { id: 'anteojos', nombre: 'Usa anteojos o audífonos' },
+  { id: 'otra', nombre: 'Otra (detallar en notas)' }
 ];
 
-// Lista de compras calculada a partir del hogar.
-export function generarCompras(personas, f) {
-  const p = Math.max(1, personas);
-  const l72 = p * 3 * 3;
-  const l14 = p * 3 * 14;
-  const lista = [
-    { id: 'c-agua72', cat: 'Agua', nombre: 'Agua potable para 72 horas', cant: `${l72} L (unos ${Math.ceil(l72 / 6)} bidones de 6 L)`, etapa: '72h', buscar: 'bidon agua 6 litros' },
-    { id: 'c-lavandina', cat: 'Agua', nombre: 'Lavandina apta para desinfectar agua', cant: '1 botella', etapa: '72h', buscar: 'lavandina apta desinfectar agua' },
-    { id: 'c-carpeta', cat: 'Carpeta y plata', nombre: 'Carpeta o bolsa hermética para documentos', cant: '1', etapa: '72h', buscar: 'carpeta impermeable documentos' },
-    { id: 'c-pendrive', cat: 'Carpeta y plata', nombre: 'Pendrive para la copia de los documentos', cant: '1', etapa: '72h', buscar: 'pendrive' },
-    { id: 'c-trauma', cat: 'Botiquín', nombre: 'Gasas, apósitos, vendas de tres anchos y cinta', cant: '1 juego', etapa: '72h', buscar: 'gasas vendas botiquin' },
-    { id: 'c-antisep', cat: 'Botiquín', nombre: 'Yodo, solución fisiológica y jabón blanco', cant: '1 de cada uno', etapa: '72h', buscar: 'solucion fisiologica' },
-    { id: 'c-proteccion', cat: 'Botiquín', nombre: 'Guantes, barbijos, antiparras y tijera de punta roma', cant: '1 juego', etapa: '72h', buscar: 'tijera punta roma trauma' },
-    { id: 'c-manta', cat: 'Botiquín', nombre: 'Manta térmica', cant: '1 o más', etapa: '72h', buscar: 'manta termica emergencia' },
-    { id: 'c-comida72', cat: 'Comida', nombre: 'Comida que no necesita cocción', cant: `para ${p} ${p === 1 ? 'persona' : 'personas'} por 3 días`, etapa: '72h', buscar: 'conservas latas' },
-    { id: 'c-linternas', cat: 'Energía', nombre: 'Linternas con pilas', cant: `${p}, una por persona`, etapa: '72h', buscar: 'linterna led pilas' },
-    { id: 'c-powerbank', cat: 'Energía', nombre: 'Power bank', cant: '1', etapa: '72h', buscar: 'power bank' },
-    { id: 'c-radio', cat: 'Comunicación', nombre: 'Radio AM/FM a pilas', cant: '1', etapa: '72h', buscar: 'radio am fm pilas' },
-    { id: 'c-silbato', cat: 'Comunicación', nombre: 'Silbato', cant: '1 o más', etapa: '72h', buscar: 'silbato' },
-    { id: 'c-mochilas', cat: 'Mochilas', nombre: 'Mochila común (nada táctico)', cant: `${p}, una por persona`, etapa: '72h', buscar: 'mochila' },
-    { id: 'c-navaja', cat: 'Mochilas', nombre: 'Navaja, bolsas de residuo gruesas y soga', cant: '1 juego por mochila', etapa: '72h', buscar: 'navaja multiuso' },
-    { id: 'c-agua14', cat: 'Agua', nombre: 'Agua potable para completar 2 semanas', cant: `${l14 - l72} L más (unos ${Math.ceil((l14 - l72) / 6)} bidones de 6 L)`, etapa: '14d', buscar: 'bidon agua 6 litros' },
-    { id: 'c-filtro', cat: 'Agua', nombre: 'Filtro de agua (de mesada o bombilla)', cant: '1', etapa: '14d', buscar: 'filtro agua gravedad' },
-    { id: 'c-pastillas', cat: 'Agua', nombre: 'Pastillas potabilizadoras', cant: '1 tira', etapa: '14d', buscar: 'pastillas potabilizadoras' },
-    { id: 'c-comida14', cat: 'Comida', nombre: 'Arroz, fideos, legumbres, latas de pescado y frutos secos', cant: `para ${p} ${p === 1 ? 'persona' : 'personas'} por 2 semanas`, etapa: '14d', buscar: 'legumbres arroz' },
-    { id: 'c-frascos', cat: 'Comida', nombre: 'Frascos de vidrio con tapa y sello', cant: 'según la despensa', etapa: '14d', buscar: 'frascos vidrio hermeticos' },
-    { id: 'c-dinamo', cat: 'Energía', nombre: 'Linterna a dínamo', cant: '1', etapa: '14d', buscar: 'linterna dinamo' },
-    { id: 'c-anafe', cat: 'Energía', nombre: 'Anafe de camping con garrafa', cant: '1', etapa: '14d', buscar: 'anafe camping garrafa' },
-    { id: 'c-herramientas', cat: 'Casa segura', nombre: 'Caja de herramientas básica', cant: '1', etapa: '14d', buscar: 'caja herramientas' },
-    { id: 'c-fluo', cat: 'Casa segura', nombre: 'Pintura fluorescente para señalizar tablero y gas', cant: '1', etapa: '14d', buscar: 'pintura fluorescente' }
-  ];
-  if (f.electro) lista.push({ id: 'c-ups', cat: 'Energía', nombre: 'UPS para la persona electrodependiente', cant: '1', etapa: '72h', buscar: 'ups' });
-  if (f.medicacion) lista.push({ id: 'c-medicacion', cat: 'Botiquín', nombre: 'Medicación crónica de reserva', cant: 'de 2 a 4 semanas', etapa: '72h', buscar: null });
-  if (f.bebes) lista.push({ id: 'c-bebe', cat: 'Comida', nombre: 'Pañales, leche y comida de bebé', cant: 'para 72 horas', etapa: '72h', buscar: 'pañales' });
-  if (f.mascotas) lista.push({ id: 'c-mascotas', cat: 'Comida', nombre: 'Agua y alimento para mascotas', cant: 'para 72 horas', etapa: '72h', buscar: 'alimento mascotas' });
-  if (f.sismica) lista.push({ id: 'c-fijaciones', cat: 'Casa segura', nombre: 'Tarugos, tornillos y escuadras para fijar muebles', cant: 'según los muebles', etapa: '14d', buscar: 'escuadras fijar muebles' });
-  return lista;
-}
+export const CATEGORIAS = [
+  { id: 'agua', nombre: 'Agua', icono: 'gota' },
+  { id: 'comida', nombre: 'Comida', icono: 'lata' },
+  { id: 'botiquin', nombre: 'Botiquín', icono: 'cruz' },
+  { id: 'energia', nombre: 'Luz y energía', icono: 'rayo' },
+  { id: 'comunicacion', nombre: 'Comunicación', icono: 'radio' },
+  { id: 'documentos', nombre: 'Documentos y plata', icono: 'hoja' },
+  { id: 'mochilas', nombre: 'Mochilas', icono: 'mochila' },
+  { id: 'casa', nombre: 'Casa y herramientas', icono: 'casa' },
+  { id: 'saberes', nombre: 'Lo que sabemos hacer', icono: 'check' }
+];
+
+// Elementos del inventario.
+// unidad: cómo se cuenta. ref: referencia del curso. revisar: cada cuántos meses conviene revisarlo.
+// vence: tiene fecha de vencimiento para anotar. porPersona: se sugiere uno por persona.
+// corto: nombre para la grilla de "qué ya tienen". soloSi: aparece solo si el hogar lo necesita.
+// saber: no se cuenta, solo se tilda.
+export const ELEMENTOS = [
+  { id: 'agua-litros', cat: 'agua', nombre: 'Agua potable', corto: 'Agua', unidad: 'L', ref: 'Referencia del curso: 3 litros por persona por día (2 para tomar y cocinar, 1 para higiene). Se rota cada 3 a 6 meses.', revisar: 6, buscar: 'bidon agua 6 litros' },
+  { id: 'agua-cantimploras', cat: 'agua', nombre: 'Botellas o cantimploras', corto: 'Cantimploras', unidad: 'u.', porPersona: true, buscar: 'cantimplora' },
+  { id: 'agua-lavandina', cat: 'agua', nombre: 'Lavandina apta para desinfectar agua', unidad: 'u.', ref: 'Leer el rótulo: pierde concentración con el tiempo.', vence: true, buscar: 'lavandina apta desinfectar agua' },
+  { id: 'agua-pastillas', cat: 'agua', nombre: 'Pastillas potabilizadoras', unidad: 'u.', vence: true, buscar: 'pastillas potabilizadoras' },
+  { id: 'agua-filtro', cat: 'agua', nombre: 'Filtro de agua', unidad: 'u.', ref: 'De mesada, bombilla con filtro o casero. Después de filtrar, igual se hierve o se clora.', buscar: 'filtro agua gravedad' },
+
+  { id: 'comida-noperecedera', cat: 'comida', nombre: 'Comida no perecedera', corto: 'Comida no perecedera', unidad: 'u.', ref: 'Latas, legumbres, arroz, fideos. Solo lo que la familia come; se usa primero lo que vence antes.', vence: true, buscar: 'conservas latas' },
+  { id: 'comida-secos', cat: 'comida', nombre: 'Frutos secos y fruta deshidratada', unidad: 'u.', vence: true, buscar: 'frutos secos' },
+  { id: 'comida-frascos', cat: 'comida', nombre: 'Frascos de vidrio con sello', unidad: 'u.', buscar: 'frascos vidrio hermeticos' },
+  { id: 'comida-bebe', cat: 'comida', nombre: 'Pañales, leche y comida de bebé', unidad: 'u.', vence: true, soloSi: 'bebes', buscar: 'pañales' },
+  { id: 'comida-mascotas', cat: 'comida', nombre: 'Agua y alimento para mascotas', unidad: 'u.', vence: true, soloSi: 'mascotas', buscar: 'alimento mascotas' },
+
+  { id: 'botiquin-gasas', cat: 'botiquin', nombre: 'Gasas, apósitos, vendas y cinta', corto: 'Gasas y vendas', unidad: 'u.', buscar: 'gasas vendas botiquin' },
+  { id: 'botiquin-antisepticos', cat: 'botiquin', nombre: 'Yodo, solución fisiológica y jabón blanco', unidad: 'u.', vence: true, buscar: 'solucion fisiologica' },
+  { id: 'botiquin-proteccion', cat: 'botiquin', nombre: 'Guantes, barbijos y antiparras', unidad: 'u.', buscar: 'guantes descartables' },
+  { id: 'botiquin-tijera', cat: 'botiquin', nombre: 'Tijera de punta roma', unidad: 'u.', buscar: 'tijera punta roma trauma' },
+  { id: 'botiquin-manta', cat: 'botiquin', nombre: 'Manta térmica', unidad: 'u.', buscar: 'manta termica emergencia' },
+  { id: 'botiquin-medicacion', cat: 'botiquin', nombre: 'Medicación de reserva', unidad: 'u.', ref: 'De 2 a 4 semanas de la medicación de todos los días.', vence: true, soloSi: 'medicacion', buscar: null },
+
+  { id: 'energia-linternas', cat: 'energia', nombre: 'Linternas', corto: 'Linternas', unidad: 'u.', porPersona: true, buscar: 'linterna led' },
+  { id: 'energia-pilas', cat: 'energia', nombre: 'Pilas', corto: 'Pilas', unidad: 'u.', vence: true, buscar: 'pilas aa' },
+  { id: 'energia-powerbank', cat: 'energia', nombre: 'Cargador externo (power bank)', corto: 'Cargador externo', unidad: 'u.', ref: 'Se descarga solo con el tiempo: conviene recargarlo cada tanto.', revisar: 3, buscar: 'power bank' },
+  { id: 'energia-velas', cat: 'energia', nombre: 'Velas y fósforos', corto: 'Velas y fósforos', unidad: 'u.', buscar: 'velas' },
+  { id: 'energia-dinamo', cat: 'energia', nombre: 'Linterna a dínamo', unidad: 'u.', buscar: 'linterna dinamo' },
+  { id: 'energia-anafe', cat: 'energia', nombre: 'Anafe de camping con garrafa', unidad: 'u.', ref: 'Para hervir agua si no hay luz ni gas.', buscar: 'anafe camping garrafa' },
+  { id: 'energia-ups', cat: 'energia', nombre: 'UPS para el equipo de la persona electrodependiente', unidad: 'u.', soloSi: 'electro', buscar: 'ups' },
+
+  { id: 'com-radio', cat: 'comunicacion', nombre: 'Radio AM/FM a pilas', corto: 'Radio a pilas', unidad: 'u.', ref: 'Las radios locales avisan alertas y puntos de ayuda.', buscar: 'radio am fm pilas' },
+  { id: 'com-silbato', cat: 'comunicacion', nombre: 'Silbato', unidad: 'u.', porPersona: true, buscar: 'silbato' },
+  { id: 'com-papel', cat: 'comunicacion', nombre: 'Lista de teléfonos en papel', unidad: 'u.', revisar: 3, buscar: null },
+
+  { id: 'doc-carpeta', cat: 'documentos', nombre: 'Carpeta hermética con la documentación', corto: 'Carpeta con documentos', unidad: 'u.', ref: 'Documentos, actas, recetas, alergias, grupo y factor de cada uno. En altura y a mano.', revisar: 3, buscar: 'carpeta impermeable documentos' },
+  { id: 'doc-digital', cat: 'documentos', nombre: 'Copia digital (pendrive con contraseña o nube)', unidad: 'u.', revisar: 3, buscar: 'pendrive' },
+  { id: 'doc-efectivo', cat: 'documentos', nombre: 'Efectivo de reserva', unidad: '$', ref: 'Si no hay luz ni señal, el QR no anda.', buscar: null },
+
+  { id: 'mochila', cat: 'mochilas', nombre: 'Mochilas de escape', corto: 'Mochilas', unidad: 'u.', porPersona: true, ref: 'Una por persona, de no más del 15% del peso de quien la lleva. Una mochila común, nada táctico.', revisar: 3, buscar: 'mochila' },
+  { id: 'mochila-extras', cat: 'mochilas', nombre: 'Navaja, bolsas gruesas y soga', unidad: 'u.', buscar: 'navaja multiuso' },
+
+  { id: 'casa-herramientas', cat: 'casa', nombre: 'Caja de herramientas básica', corto: 'Herramientas', unidad: 'u.', ref: 'Pinza, destornillador, martillo.', buscar: 'caja herramientas' },
+  { id: 'casa-fluo', cat: 'casa', nombre: 'Pintura fluorescente para señalizar tablero y gas', unidad: 'u.', buscar: 'pintura fluorescente' },
+  { id: 'casa-fijaciones', cat: 'casa', nombre: 'Escuadras y tarugos para fijar muebles pesados', unidad: 'u.', buscar: 'escuadras fijar muebles' },
+
+  { id: 'saber-potabilizar', cat: 'saberes', nombre: 'Sabemos potabilizar: hervir fuerte 5 minutos, o 2 gotas de lavandina por litro si tiene 50 g de cloro por litro.', saber: true },
+  { id: 'saber-termica', cat: 'saberes', nombre: 'Varios sabemos bajar la térmica y cerrar la llave del gas.', saber: true },
+  { id: 'saber-pas', cat: 'saberes', nombre: 'Conocemos la regla PAS: proteger, avisar, socorrer.', saber: true },
+  { id: 'saber-encuentro', cat: 'saberes', nombre: 'Tenemos un punto de encuentro acordado.', saber: true },
+  { id: 'saber-mochilas', cat: 'saberes', nombre: 'Practicamos salir con las mochilas.', saber: true }
+];
+
+// La grilla de "qué ya tienen en casa": 4 filas de 3.
+export const INICIALES = [
+  'energia-linternas', 'mochila', 'doc-carpeta',
+  'agua-cantimploras', 'energia-powerbank', 'botiquin-gasas',
+  'agua-litros', 'comida-noperecedera', 'energia-pilas',
+  'com-radio', 'energia-velas', 'casa-herramientas'
+];
+
+// Lo que se tildó en la V01 pasa al inventario de la V02.
+export const MIGRACION = {
+  'agua-72': 'agua-litros', 'agua-14': 'agua-litros', 'agua-lavandina': 'agua-lavandina', 'agua-pastillas': 'agua-pastillas',
+  'agua-filtro': 'agua-filtro', 'agua-saber': 'saber-potabilizar',
+  'carpeta-armada': 'doc-carpeta', 'carpeta-digital': 'doc-digital', 'plata-efectivo': 'doc-efectivo',
+  'botiquin-trauma': 'botiquin-gasas', 'botiquin-antisepticos': 'botiquin-antisepticos', 'botiquin-proteccion': 'botiquin-proteccion',
+  'botiquin-medicacion': 'botiquin-medicacion', 'botiquin-manta': 'botiquin-manta', 'botiquin-saber': 'saber-pas',
+  'comida-72': 'comida-noperecedera', 'comida-14': 'comida-noperecedera', 'comida-frascos': 'comida-frascos',
+  'comida-bebe': 'comida-bebe', 'comida-mascotas': 'comida-mascotas',
+  'energia-linternas': 'energia-linternas', 'energia-powerbank': 'energia-powerbank', 'energia-termica': 'saber-termica',
+  'energia-ups': 'energia-ups', 'energia-dinamo': 'energia-dinamo', 'energia-anafe': 'energia-anafe',
+  'com-papel': 'com-papel', 'com-radio': 'com-radio', 'com-silbato': 'com-silbato',
+  'mochila-una': 'mochila', 'mochila-contenido': 'mochila-extras', 'mochila-practica': 'saber-mochilas',
+  'casa-tablero': 'saber-termica', 'casa-encuentro': 'saber-encuentro', 'casa-herramientas': 'casa-herramientas',
+  'casa-muebles': 'casa-fijaciones'
+};
+
+export const GRUPOS_RED = [
+  { id: 'familia', nombre: 'Familia' },
+  { id: 'vecinos', nombre: 'Vecinos' },
+  { id: 'brigada', nombre: 'Brigada u organización' },
+  { id: 'otros', nombre: 'Otros' }
+];
+
+// Mensajes armados para escribirle a la red. {direccion} y {encuentro} se completan solos.
+export const MENSAJES = [
+  { id: 'consulta', nombre: '¿Están bien?', texto: 'Hola, ¿están bien? ¿Necesitan algo?' },
+  { id: 'bien', nombre: 'Estamos bien', texto: 'Hola, nosotros estamos bien.' },
+  { id: 'ayuda', nombre: 'Necesitamos ayuda', texto: 'Necesitamos ayuda. Estamos en {direccion}.' },
+  { id: 'encuentro', nombre: 'Punto de encuentro', texto: 'Nos encontramos en {encuentro}.' },
+  { id: 'carga', nombre: 'Ofrecer punto de carga', texto: 'En casa tenemos energía para cargar celulares y guardar remedios en la heladera. Estamos en {direccion}.' }
+];
 
 export const PROTOCOLOS = [
   {
@@ -153,7 +157,7 @@ export const PROTOCOLOS = [
     ]
   },
   {
-    id: 'inundacion', nombre: 'Inundación', zona: 'inundable', pasos: [
+    id: 'inundacion', nombre: 'Inundación', pasos: [
       'Antes: reservas listas y la carpeta en altura.',
       'Cortá la luz aunque el agua todavía no haya entrado.',
       'Si hay que salir, por la vereda y nunca por la calle. Lejos de los cables caídos.',
@@ -167,12 +171,12 @@ export const PROTOCOLOS = [
     id: 'tormenta', nombre: 'Tormenta', pasos: [
       'Entrá todo lo que se pueda volar.',
       'Revisá desagües, canaletas, chapas y tejas, pensando también en el daño que se le puede hacer a otros.',
-      'Cargá el celular y los power banks. Guardá batería para las alertas.',
+      'Cargá el celular y los cargadores externos. Guardá batería para las alertas.',
       'Tené el número de Defensa Civil y seguí sus indicaciones.'
     ]
   },
   {
-    id: 'incendio', nombre: 'Incendio', zona: 'incendios', pasos: [
+    id: 'incendio', nombre: 'Incendio', pasos: [
       'Salí primero, sin volver por nada. Llamá recién estando afuera.',
       'Tocá la puerta con el dorso de la mano: si está caliente, no la abras y buscá otra salida.',
       'Moverse agachado, por debajo del humo. Nunca uses el ascensor.',
@@ -181,7 +185,7 @@ export const PROTOCOLOS = [
     ]
   },
   {
-    id: 'sismo', nombre: 'Sismo', zona: 'sismica', pasos: [
+    id: 'sismo', nombre: 'Sismo', pasos: [
       'Agachate, cubrite y aferrate bajo un mueble sólido. El marco de la puerta ya no es lo recomendado.',
       'Si no hay mueble, en cuclillas contra una pared interior, lejos de las ventanas.',
       'Después: si hay olor a gas, no toques interruptores ni prendas fuego.',
@@ -189,7 +193,7 @@ export const PROTOCOLOS = [
     ]
   },
   {
-    id: 'calor', nombre: 'Ola de calor', zona: 'calor', pasos: [
+    id: 'calor', nombre: 'Ola de calor', pasos: [
       'Tomá agua segura aunque no tengas sed.',
       'Nada helado ni caliente, ni alcohol ni bebidas azucaradas.',
       'Ropa clara y no salir en las horas de más sol.',
@@ -259,5 +263,5 @@ export const TUTORIALES = [
   { tema: 'Primeros auxilios', items: ['regla PAS proteger avisar socorrer', 'cómo frenar una hemorragia', 'maniobra para desatragantar', 'RCP paso a paso'] },
   { tema: 'Seguridad de la casa', items: ['seguridad en el hogar iluminación y cerraduras', 'defensa personal básica'] },
   { tema: 'Comunicación', items: ['radio AM FM en emergencias', 'Meshtastic red en malla'] },
-  { tema: 'Planes', items: ['plan familiar de emergencia', 'mochila de emergencia 72 horas'] }
+  { tema: 'Planes', items: ['plan familiar de emergencia', 'mochila de emergencia'] }
 ];
