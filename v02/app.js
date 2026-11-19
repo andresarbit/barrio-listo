@@ -1,6 +1,6 @@
 import {
   TIPOS, GRUPOS, OBSERVACIONES, CATEGORIAS, ELEMENTOS, INICIALES, MIGRACION, PROTOCOLOS, NUMEROS, ROLES_PLAN,
-  TIPOS_MARCADOR, BUSQUEDAS_CERCA, CURSO, TUTORIALES, GRUPOS_RED, MENSAJES
+  TIPOS_MARCADOR, BUSQUEDAS_CERCA, CURSO, TUTORIALES, GRUPOS_RED, MENSAJES, ANIMALES, DIAS_RESERVA
 } from './datos.js';
 
 const CLAVE = 'barrio-listo-v1';
@@ -59,11 +59,12 @@ function base() {
   return {
     version: 2,
     hogar: {
-      configurado: false, mascotas: false,
+      configurado: false, mascotas: false, diasReserva: 3,
       direccion: '', entreCalles: '', barrio: '', localidad: '', provincia: '', referencia: '',
       meta: 3, zona: { inundable: false, sismica: false, calor: false, incendios: false }
     },
     integrantes: [],
+    mascotas: [],
     checks: {},
     inventario: {},
     extras: [],
@@ -82,7 +83,16 @@ function normalizar(d) {
     else if (typeof b[k] === 'object' && !Array.isArray(b[k])) d[k] = Object.assign(b[k], d[k]);
   }
   d.hogar.zona = Object.assign(base().hogar.zona, d.hogar.zona || {});
-  for (const k of ['integrantes', 'extras', 'red']) if (!Array.isArray(d[k])) d[k] = [];
+  for (const k of ['integrantes', 'extras', 'red', 'mascotas']) if (!Array.isArray(d[k])) d[k] = [];
+  for (const m of d.mascotas) {
+    if (m.cantidad === undefined || m.cantidad === null) m.cantidad = 1;
+    for (const k of ['animal', 'edad', 'obs']) if (m[k] === undefined || m[k] === null) m[k] = '';
+  }
+  // Antes había solo un tilde de "Tenemos mascotas": pasa a ser un renglón para completar.
+  if (!d.migradoMascotas) {
+    if (d.hogar.mascotas && !d.mascotas.length) d.mascotas.push({ id: uid(), animal: '', cantidad: 1, edad: '', obs: '' });
+    d.migradoMascotas = true;
+  }
   if (!Array.isArray(d.plan.contactos)) d.plan.contactos = [];
   if (!d.plan.roles || typeof d.plan.roles !== 'object') d.plan.roles = {};
   if (!Array.isArray(d.zona.marcadores)) d.zona.marcadores = [];
@@ -118,14 +128,99 @@ function guardar() {
    ========================================================= */
 const personas = () => estado.integrantes.length;
 const nombreObs = (id) => OBSERVACIONES.find((o) => o.id === id)?.nombre || id;
+const conObs = (id) => estado.integrantes.filter((i) => i.obs.includes(id));
+const conMedicacion = () => estado.integrantes.filter((i) => (i.medicacion || '').trim() || i.obs.includes('medicacion'));
+const datoAnimal = (id) => ANIMALES.find((a) => a.id === id);
+const cantMascota = (m) => Math.max(0, Math.round(Number(m.cantidad) || 0));
+const animales = () => estado.mascotas.reduce((s, m) => s + cantMascota(m), 0);
+const aguaMascotasDia = () => estado.mascotas.reduce((s, m) => s + cantMascota(m) * (datoAnimal(m.animal)?.agua ?? 0.2), 0);
+const dias = () => Number(estado.hogar.diasReserva) || 3;
+const decimal = (n) => (Math.round(n * 10) / 10).toLocaleString('es-AR');
+const listaNombres = (ints) => ints.map((i) => i.nombre).join(', ').replace(/, ([^,]*)$/, ' y $1');
+function listaAnimales() {
+  const partes = estado.mascotas.filter((m) => cantMascota(m) > 0).map((m) => {
+    const a = datoAnimal(m.animal), n = cantMascota(m);
+    if (!a) return plural(n, 'mascota', 'mascotas');
+    return `${n} ${n === 1 ? a.nombre.toLowerCase() : a.plural}`;
+  });
+  return partes.join(', ').replace(/, ([^,]*)$/, ' y $1');
+}
+function quienes() {
+  const p = personas(), a = animales();
+  return [p ? plural(p, 'persona', 'personas') : '', a ? plural(a, 'mascota', 'mascotas') : ''].filter(Boolean).join(' y ');
+}
+function sincronizarMascotas() { estado.hogar.mascotas = animales() > 0; }
 function condiciones() {
   const ints = estado.integrantes;
   return {
-    electro: ints.some((i) => i.obs.includes('electro')),
-    medicacion: ints.some((i) => (i.medicacion || '').trim() || i.obs.includes('medicacion')),
+    electro: conObs('electro').length > 0,
+    medicacion: conMedicacion().length > 0,
     bebes: ints.some((i) => i.tipo === 'bebe'),
-    mascotas: !!estado.hogar.mascotas
+    dieta: conObs('dieta').length > 0,
+    anteojos: conObs('anteojos').length > 0,
+    mascotas: animales() > 0
   };
+}
+// Lo que necesita la casa de cada cosa, según quiénes viven ahí.
+// cant: número para comparar con lo que tienen (o null si es solo una guía).
+function necesidad(e) {
+  const p = personas(), d = dias();
+  switch (e.por) {
+    case 'persona':
+      return p ? { cant: p, texto: `1 por persona: necesitan ${p}.` } : null;
+    case 'agua': {
+      const am = aguaMascotasDia();
+      const porDia = p * 3 + am;
+      if (!porDia) return null;
+      const cant = Math.ceil(porDia * d);
+      const detalle = [p ? '3 L por persona' : '', am ? `unos ${decimal(am)} L para las mascotas` : ''].filter(Boolean).join(' y ');
+      return { cant, texto: `Para ${quienes()}: ${decimal(porDia)} L por día (${detalle}). Para ${d} días, ${cant} L.` };
+    }
+    case 'raciones': {
+      // Los bebés y quienes tienen dieta especial tienen su propia línea.
+      const aparte = estado.integrantes.filter((i) => i.tipo === 'bebe' || i.obs.includes('dieta'));
+      const c = p - aparte.length;
+      if (!c) return null;
+      const cant = c * 3 * d;
+      const nota = aparte.length ? ` (${listaNombres(aparte)} ${aparte.length === 1 ? 'va' : 'van'} aparte)` : '';
+      return { cant, texto: `Para ${plural(c, 'persona', 'personas')}${nota}: 3 raciones por día cada una. Para ${d} días, ${cant} raciones.` };
+    }
+    case 'electro': {
+      const n = conObs('electro').length;
+      return n ? { cant: n, texto: `1 por persona electrodependiente: necesitan ${n}.` } : null;
+    }
+    case 'animal': {
+      const n = estado.mascotas.reduce((s, m) => s + ((datoAnimal(m.animal)?.transporte ?? true) ? cantMascota(m) : 0), 0);
+      return n ? { cant: n, texto: `1 por animal: necesitan ${n}.` } : null;
+    }
+    case 'bebe': {
+      const n = estado.integrantes.filter((i) => i.tipo === 'bebe').length;
+      return n ? { cant: null, texto: `Para ${plural(n, 'bebé', 'bebés')}: lo de ${d} días.` } : null;
+    }
+    case 'dieta': {
+      const ints = conObs('dieta');
+      if (!ints.length) return null;
+      const cant = ints.length * 3 * d;
+      return { cant, texto: `Para ${listaNombres(ints)}: 3 raciones por día. Para ${d} días, ${cant} raciones.` };
+    }
+    case 'mascotas': {
+      const lista = listaAnimales();
+      return lista ? { cant: null, texto: `Para ${lista}: lo que comen en ${d} días. El agua de las mascotas ya está sumada en Agua potable.` } : null;
+    }
+    case 'medicacion': {
+      const ints = conMedicacion();
+      return ints.length ? { cant: null, texto: `De 2 a 4 semanas de la medicación de ${listaNombres(ints)}.` } : null;
+    }
+    default:
+      return null;
+  }
+}
+const faltaTexto = (n, unidad) => `${n === 1 ? 'Falta' : 'Faltan'} ${decimal(n)} ${esc(unidad)}`;
+// Cuánto falta para llegar a lo que necesitan. Solo si ya anotaron cuánto tienen.
+function faltaDe(e) {
+  const n = necesidad(e), r = registro(e.id);
+  if (!n || !n.cant || !r.tengo || r.cantidad === null || r.cantidad === undefined) return 0;
+  return Math.max(0, Math.ceil(n.cant - Number(r.cantidad)));
 }
 function elementos() {
   const c = condiciones();
@@ -158,7 +253,7 @@ function progresoDe(lista) {
 const progresoCat = (catId) => progresoDe(elementos().filter((e) => e.cat === catId));
 const progresoInventario = () => progresoDe(elementos());
 const paraRenovar = () => elementos().filter((e) => !e.saber && estadoElemento(e).tipo === 'renovar');
-const faltantes = () => elementos().filter((e) => !e.saber && (!registro(e.id).tengo || estadoElemento(e).tipo === 'renovar'));
+const faltantes = () => elementos().filter((e) => !e.saber && (!registro(e.id).tengo || estadoElemento(e).tipo === 'renovar' || faltaDe(e) > 0));
 function hogarIniciado() {
   const h = estado.hogar;
   return personas() > 0 || !!(h.direccion || h.barrio) || INICIALES.some((id) => registro(id).tengo);
@@ -172,7 +267,7 @@ function progresoModulos() {
     hogar: [p > 0, !!(h.direccion || h.barrio), INICIALES.some((id) => registro(id).tengo)].filter(Boolean).length / 3,
     familia: p ? estado.integrantes.reduce((s, i) => s + [i.edad !== '', i.grupo, i.contacto].filter(Boolean).length / 3, 0) / p : 0,
     inventario: progresoInventario().r,
-    compras: comprables.length ? comprables.filter((e) => registro(e.id).tengo && estadoElemento(e).tipo !== 'renovar').length / comprables.length : 0,
+    compras: comprables.length ? comprables.filter((e) => registro(e.id).tengo && estadoElemento(e).tipo !== 'renovar' && !faltaDe(e)).length / comprables.length : 0,
     plan: [pl.encuentro, pl.encuentroAlt, pl.rutas, roles >= 2].filter(Boolean).length / 4,
     red: [estado.red.length >= 1, estado.red.length >= 3, grupos >= 2].filter(Boolean).length / 3,
     zona: [ms.some((m) => m.tipo === 'casa'), ms.some((m) => m.tipo === 'encuentro'), ms.some((m) => m.tipo === 'riesgo' || m.tipo === 'servicio')].filter(Boolean).length / 3
@@ -334,6 +429,22 @@ function formSumar() {
     <button type="submit" class="boton primario" style="align-self:end">Sumar</button>
   </form>`;
 }
+// Un renglón por animal: qué es, cuántos, edad y observaciones.
+function bloqueMascotas(enPanel) {
+  const ms = estado.mascotas;
+  const fila = (m) => `<div class="mascota-fila">
+      <label class="campo chico m-animal">Animal<select data-mcampo="animal" data-id="${m.id}">${m.animal ? '' : '<option value="" selected>Elegí</option>'}${ANIMALES.map((a) => `<option value="${a.id}" ${a.id === m.animal ? 'selected' : ''}>${a.nombre}</option>`).join('')}</select></label>
+      <label class="campo chico m-cantidad">Cantidad<input type="number" min="1" max="50" inputmode="numeric" data-mcampo="cantidad" data-id="${m.id}" value="${esc(m.cantidad)}"></label>
+      <label class="campo chico m-edad">Edad<input type="text" maxlength="20" data-mcampo="edad" data-id="${m.id}" value="${esc(m.edad)}" placeholder="Ej.: 4 años"></label>
+      <label class="campo chico m-obs">Observaciones<input type="text" maxlength="120" data-mcampo="obs" data-id="${m.id}" value="${esc(m.obs)}" placeholder="Ej.: toma medicación, se asusta con los truenos"></label>
+      <button type="button" class="boton chico m-quitar" data-accion="quitar-mascota" data-id="${m.id}">Quitar</button>
+    </div>`;
+  return `<div class="mascotas">
+    ${enPanel ? '<h3>Mascotas</h3>' : '<span class="campo-titulo">Mascotas</span>'}
+    ${ms.length ? ms.map(fila).join('') : '<p class="nota">Si tienen animales, sumá un renglón por cada tipo.</p>'}
+    <div class="fila"><button type="button" class="boton chico" data-accion="sumar-mascota">+ Sumar una mascota</button></div>
+  </div>`;
+}
 function verHogar() {
   const h = estado.hogar, p = personas();
   const campo = (k, etiqueta, ph) => `<label class="campo">${etiqueta}<input type="text" data-campo="hogar.${k}" value="${esc(h[k])}" placeholder="${ph}" maxlength="120" autocomplete="off"></label>`;
@@ -345,8 +456,8 @@ function verHogar() {
     <h3>1 · Quiénes son</h3>
     ${p ? `<ul class="limpia">${estado.integrantes.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b> · ${TIPOS[i.tipo]}${edadTexto(i)}</span><button type="button" class="boton chico" data-accion="quitar-integrante" data-id="${i.id}">Quitar</button></li>`).join('')}</ul>` : '<p class="nota">Todavía no sumaste a nadie. Empezá por vos.</p>'}
     ${formSumar()}
-    <label class="opcion"><input type="checkbox" data-campo="hogar.mascotas" ${h.mascotas ? 'checked' : ''}><span>Tenemos mascotas</span></label>
     <p class="nota">La salud y las observaciones de cada uno se completan en <a href="#familia">Familia</a>.</p>
+    ${bloqueMascotas()}
   </div>
   <div class="panel">
     <h3>2 · Dónde viven</h3>
@@ -391,7 +502,7 @@ let obsEdicion = [];
 function verFamilia() {
   const ints = estado.integrantes;
   const intro = 'Una ficha por persona, con lo que hace falta saber para cuidarse entre todos. Queda guardada solo en este teléfono.';
-  if (!ints.length) return `${cabeza('Módulo 2', 'Familia', intro)}<div class="panel"><h3>Todavía no hay nadie</h3><p>Sumá a cada persona de la casa. Después completás su ficha.</p>${formSumar()}</div>`;
+  if (!ints.length) return `${cabeza('Módulo 2', 'Familia', intro)}<div class="panel"><h3>Todavía no hay nadie</h3><p>Sumá a cada persona de la casa. Después completás su ficha.</p>${formSumar()}</div><div class="panel">${bloqueMascotas(true)}</div>`;
   const sel = ints.find((i) => i.id === familiaSel) || ints[0];
   familiaSel = sel.id;
   const lleva = ints.find((i) => i.id === sel.mochila);
@@ -423,7 +534,8 @@ function verFamilia() {
   <div class="selector" role="group" aria-label="Personas">
     ${ints.map((i) => `<button type="button" data-accion="elegir-integrante" data-id="${i.id}" aria-pressed="${i.id === sel.id}"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas>${esc(i.nombre)}</button>`).join('')}
   </div>
-  <div class="panel"><h3>Sumar a alguien</h3>${formSumar()}</div>`;
+  <div class="panel"><h3>Sumar a alguien</h3>${formSumar()}</div>
+  <div class="panel">${bloqueMascotas(true)}</div>`;
 }
 function chipsObs() {
   return obsEdicion.length
@@ -480,36 +592,73 @@ function quitarIntegrante(id) {
 /* ---------- inventario ---------- */
 let irACat = null;
 function notaAgua(r) {
-  const p = personas();
-  if (!p || !(Number(r.cantidad) > 0)) return '';
-  const dias = Math.floor(Number(r.cantidad) / (p * 3));
-  return `Con ${r.cantidad} L, ${plural(p, 'persona tiene', 'personas tienen')} agua para ${dias < 1 ? 'menos de un día' : plural(dias, 'día', 'días')}.`;
+  const porDia = personas() * 3 + aguaMascotasDia();
+  if (!porDia || !(Number(r.cantidad) > 0)) return '';
+  const d = Math.floor(Number(r.cantidad) / porDia);
+  return `Con ${decimal(Number(r.cantidad))} L tienen agua para ${d < 1 ? 'menos de un día' : plural(d, 'día', 'días')}.`;
+}
+function chipsElemento(e) {
+  const r = registro(e.id);
+  const st = estadoElemento(e);
+  const nec = e.saber ? null : necesidad(e);
+  const falta = faltaDe(e);
+  return [
+    st.texto ? `<span class="chip ${st.tipo}">${st.texto}</span>` : '',
+    nec && nec.cant && r.tengo && r.cantidad !== null && r.cantidad !== undefined
+      ? (falta ? `<span class="chip pronto">${faltaTexto(falta, e.unidad)}</span>` : '<span class="chip ok">Alcanza</span>')
+      : ''
+  ].filter(Boolean).join('');
+}
+const paraCompletar = () => elementos().filter((e) => !e.saber && faltaDe(e) > 0).length;
+// Al cambiar una cantidad se actualizan solo los textos, sin redibujar los campos.
+function actualizarCuenta(id) {
+  const e = elementos().find((x) => x.id === id);
+  if (!e) return;
+  const c = vista.querySelector(`[data-chips="${CSS.escape(id)}"]`);
+  if (c) c.innerHTML = chipsElemento(e);
+  if (id === 'agua-litros') { const n = vista.querySelector('[data-nota-agua]'); if (n) n.textContent = notaAgua(registro(id)); }
+  const pc = document.getElementById('para-completar');
+  if (pc) {
+    const n = paraCompletar();
+    pc.textContent = n;
+    pc.nextElementSibling.textContent = n ? 'Tienen algo, pero no alcanza para todos.' : 'Lo que anotaron alcanza.';
+  }
 }
 function filaElemento(e) {
   const r = registro(e.id);
-  const st = estadoElemento(e);
-  const chip = st.texto ? `<span class="chips"><span class="chip ${st.tipo}">${st.texto}</span></span>` : '';
-  const agua = e.id === 'agua-litros' && r.tengo ? `<span class="nota" id="nota-agua">${notaAgua(r)}</span>` : '';
+  const nec = e.saber ? null : necesidad(e);
+  const chip = `<span class="chips" data-chips="${e.id}">${chipsElemento(e)}</span>`;
+  const necTexto = nec ? `<span class="nota necesidad">${esc(nec.texto)}</span>` : '';
+  const agua = e.id === 'agua-litros' && r.tengo ? `<span class="nota" data-nota-agua>${notaAgua(r)}</span>` : '';
   const quitar = e.extra ? `<button type="button" class="boton chico" data-accion="quitar-extra" data-id="${e.id}">Quitar</button>` : '';
   const datos = r.tengo && !e.saber
     ? `<div class="elemento-datos">
-        <label class="campo chico">Cantidad<span class="con-unidad"><input type="number" min="0" step="any" inputmode="decimal" data-cantidad="${e.id}" value="${r.cantidad ?? ''}"><span>${esc(e.unidad)}</span></span></label>
+        <label class="campo chico">Cantidad<span class="con-unidad"><input type="number" min="0" step="any" inputmode="decimal" data-cantidad="${e.id}" value="${r.cantidad ?? ''}"><span>${nec && nec.cant ? `de ${nec.cant} ${esc(e.unidad)}` : esc(e.unidad)}</span></span></label>
         ${e.vence ? `<label class="campo chico">Vence<input type="date" data-vence="${e.id}" value="${r.vence || ''}"></label>` : ''}
         ${quitar}
       </div>`
     : (quitar ? `<div class="elemento-datos">${quitar}</div>` : '');
   return `<div class="elemento">
-    <label class="paso"><input type="checkbox" data-tengo="${e.id}" ${r.tengo ? 'checked' : ''}><span class="paso-texto"><span>${esc(e.nombre)}</span>${e.ref ? `<span class="nota">${esc(e.ref)}</span>` : ''}${agua}${chip}</span></label>
+    <label class="paso"><input type="checkbox" data-tengo="${e.id}" ${r.tengo ? 'checked' : ''}><span class="paso-texto"><span>${esc(e.nombre)}</span>${necTexto}${e.ref ? `<span class="nota">${esc(e.ref)}</span>` : ''}${agua}${chip}</span></label>
     ${datos}
   </div>`;
 }
 function verInventario() {
   const pr = progresoInventario();
   const ren = paraRenovar();
+  const completar = paraCompletar();
+  const q = quienes();
   return `
-  ${cabeza('Módulo 3', 'Inventario', 'Lo que tienen, cuánto y hasta cuándo. Anotá los vencimientos: la app te avisa con tiempo cuando algo conviene renovarse.')}
+  ${cabeza('Módulo 3', 'Inventario', 'Lo que tienen, cuánto y hasta cuándo. Las cantidades se ajustan solas a quiénes viven en la casa. Anotá los vencimientos: la app te avisa con tiempo cuando algo conviene renovarse.')}
+  <div class="panel">
+    <h3>Para quiénes se calcula</h3>
+    <p>${q ? `<b>${q}</b>${estado.mascotas.length ? ` (${esc(listaAnimales())})` : ''}.` : 'Todavía no cargaste a nadie.'} <a href="#hogar">${q ? 'Cambiar' : 'Cargar en Mi hogar'}</a></p>
+    <label class="campo">Agua y comida para<select data-campo="hogar.diasReserva">${DIAS_RESERVA.map((n) => `<option value="${n}" ${n === dias() ? 'selected' : ''}>${n} días</option>`).join('')}</select></label>
+    <p class="nota">Es una referencia para hacer las cuentas, no un plazo. Cuando sumás o sacás a alguien, lo que necesitan de cada cosa se recalcula.</p>
+  </div>
   <div class="resumen">
     <div class="panel"><span class="rotulo">Tienen</span><span class="dato-grande">${pr.n}/${pr.total}</span></div>
+    <div class="panel"><span class="rotulo">Para completar</span><span class="dato-grande" id="para-completar">${completar}</span><span class="nota">${completar ? 'Tienen algo, pero no alcanza para todos.' : 'Lo que anotaron alcanza.'}</span></div>
     <div class="panel"><span class="rotulo">Para renovar</span><span class="dato-grande">${ren.length}</span><span class="nota">${ren.length ? 'Sumalo a la próxima compra.' : 'Todo al día.'}</span></div>
   </div>
   ${CATEGORIAS.map((cat) => {
@@ -544,9 +693,10 @@ function alternarTengo(id, valor) {
 
 /* ---------- compras ---------- */
 function sugerencia(e) {
-  const p = personas();
-  if (e.id === 'agua-litros') return p ? `Referencia: 3 L por persona por día (${p * 3} L por día para ${plural(p, 'persona', 'personas')}).` : 'Referencia: 3 L por persona por día.';
-  if (e.porPersona && p) return `Sugerido: uno por persona (${p}).`;
+  const falta = faltaDe(e);
+  const nec = necesidad(e);
+  if (falta) return `${faltaTexto(falta, e.unidad)}: necesitan ${nec.cant} y tienen ${decimal(Number(registro(e.id).cantidad))}.`;
+  if (nec) return nec.texto;
   return e.ref || '';
 }
 function faltaGastar(lista) {
@@ -567,11 +717,11 @@ function verCompras() {
     const items = lista.filter((e) => e.cat === cat.id);
     if (!items.length) return '';
     return `<article class="panel"><h3>${cat.nombre}</h3><ul class="limpia">${items.map((e) => {
-      const renovar = registro(e.id).tengo;
+      const renovar = registro(e.id).tengo && estadoElemento(e).tipo === 'renovar';
       const url = e.buscar ? `https://listado.mercadolibre.com.ar/${encodeURIComponent(e.buscar.replace(/\s+/g, '-'))}` : null;
       const sug = sugerencia(e);
       return `<li class="compra solo"><div class="compra-cuerpo">
-        <span><b>${esc(e.nombre)}</b>${renovar ? ' <span class="chip renovar">Para renovar</span>' : ''}</span>
+        <span><b>${esc(e.nombre)}</b>${renovar ? ' <span class="chip renovar">Para renovar</span>' : ''}${faltaDe(e) ? ' <span class="chip pronto">Para completar</span>' : ''}</span>
         ${sug ? `<span class="compra-cant">${esc(sug)}</span>` : ''}
         <div class="compra-fila">
           <input type="number" inputmode="numeric" min="0" step="1" placeholder="Precio $" data-precio="${e.id}" value="${estado.compras[e.id]?.precio ?? ''}" aria-label="Precio de ${esc(e.nombre)}">
@@ -588,7 +738,13 @@ function verCompras() {
   </div>`;
 }
 async function copiarCompras() {
-  const texto = `Lista de compras para estar preparados:\n${faltantes().map((e) => `- ${e.nombre}`).join('\n')}`;
+  const cuanto = (e) => {
+    const falta = faltaDe(e), nec = necesidad(e);
+    if (falta) return ` (${faltaTexto(falta, e.unidad).toLowerCase()})`;
+    if (nec && nec.cant && !registro(e.id).tengo) return ` (${nec.cant} ${e.unidad})`;
+    return '';
+  };
+  const texto = `Lista de compras para estar preparados:\n${faltantes().map((e) => `- ${e.nombre}${cuanto(e)}`).join('\n')}`;
   try { await navigator.clipboard.writeText(texto); aviso('Lista copiada'); }
   catch (e) {
     if (navigator.share) { try { await navigator.share({ text: texto }); } catch (err) { /* cancelado */ } }
@@ -635,6 +791,11 @@ function verHoja() {
       <thead><tr><th>Nombre</th><th>Edad</th><th>Grupo</th><th>Observaciones</th><th>Alergias y medicación</th><th>Contacto</th></tr></thead>
       <tbody>${ints.map((i) => `<tr><td>${esc(i.nombre)}</td><td>${esc(i.edad)}</td><td>${esc(i.grupo)}</td><td>${i.obs.map((o) => esc(nombreObs(o))).join(', ')}</td><td>${[i.alergias, i.medicacion].filter(Boolean).map(esc).join(' · ')}</td><td>${esc(i.contacto)}</td></tr>`).join('') || '<tr><td colspan="6">Sin personas cargadas</td></tr>'}</tbody>
     </table></div>
+    ${estado.mascotas.length ? `<h3>Mascotas</h3>
+    <div class="hoja-caja"><table>
+      <thead><tr><th>Animal</th><th>Cantidad</th><th>Edad</th><th>Observaciones</th></tr></thead>
+      <tbody>${estado.mascotas.map((m) => `<tr><td>${esc(datoAnimal(m.animal)?.nombre || 'Mascota')}</td><td>${cantMascota(m)}</td><td>${esc(m.edad)}</td><td>${esc(m.obs)}</td></tr>`).join('')}</tbody>
+    </table></div>` : ''}
     <h3>Dónde nos encontramos</h3>
     <p><b>Cerca de casa:</b> ${esc(pl.encuentro) || '—'}<br><b>Fuera del barrio:</b> ${esc(pl.encuentroAlt) || '—'}</p>
     <p><b>Rutas de salida:</b> ${esc(pl.rutas) || '—'}</p>
@@ -849,7 +1010,8 @@ function verEmergencia() {
     <div class="protocolos-botones" role="group" aria-label="Elegí la situación">${PROTOCOLOS.map((p) => `<button type="button" data-accion="protocolo" data-id="${p.id}" aria-pressed="${p.id === pr.id}">${p.nombre}</button>`).join('')}</div>
     <ol class="orden">${pr.pasos.map((s) => `<li><span>${s}</span></li>`).join('')}</ol>
   </div>
-  ${ints.length ? `<div class="panel"><h3>Fichas</h3><ul class="limpia">${ints.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b>${edadTexto(i)} · grupo ${esc(i.grupo) || '—'}<br><span class="nota">${i.obs.length ? `${i.obs.map((o) => esc(nombreObs(o))).join(', ')} · ` : ''}Alergias: ${esc(i.alergias) || '—'} · Medicación: ${esc(i.medicacion) || '—'}${i.contacto ? ` · Tel.: ${esc(i.contacto)}` : ''}</span></span><span></span></li>`).join('')}</ul></div>` : ''}`;
+  ${ints.length ? `<div class="panel"><h3>Fichas</h3><ul class="limpia">${ints.map((i) => `<li class="integrante-fila"><canvas width="7" height="13" data-avatar="${i.id}" aria-hidden="true"></canvas><span><b>${esc(i.nombre)}</b>${edadTexto(i)} · grupo ${esc(i.grupo) || '—'}<br><span class="nota">${i.obs.length ? `${i.obs.map((o) => esc(nombreObs(o))).join(', ')} · ` : ''}Alergias: ${esc(i.alergias) || '—'} · Medicación: ${esc(i.medicacion) || '—'}${i.contacto ? ` · Tel.: ${esc(i.contacto)}` : ''}</span></span><span></span></li>`).join('')}</ul></div>` : ''}
+  ${animales() ? `<div class="panel"><h3>Mascotas</h3><ul class="limpia">${estado.mascotas.filter((m) => cantMascota(m) > 0).map((m) => `<li><b>${cantMascota(m)} × ${esc(datoAnimal(m.animal)?.nombre || 'Mascota')}</b>${m.edad ? ` · ${esc(m.edad)}` : ''}${m.obs ? `<br><span class="nota">${esc(m.obs)}</span>` : ''}</li>`).join('')}</ul></div>` : ''}`;
 }
 async function prenderLinterna() {
   linterna.hidden = false;
@@ -974,7 +1136,7 @@ function refrescar() {
   const a = document.activeElement;
   let selector = null;
   if (a && vista.contains(a)) {
-    for (const k of ['tengo', 'cantidad', 'vence', 'precio', 'campo', 'accion']) {
+    for (const k of ['tengo', 'cantidad', 'vence', 'precio', 'campo', 'mcampo', 'accion']) {
       if (a.dataset[k] !== undefined) {
         selector = `[data-${k}="${CSS.escape(a.dataset[k])}"]`;
         if (a.dataset.id) selector += `[data-id="${CSS.escape(a.dataset.id)}"]`;
@@ -993,6 +1155,15 @@ window.addEventListener('hashchange', () => render(true));
 const ACCIONES = {
   tengo: (b) => { alternarTengo(b.dataset.id, !registro(b.dataset.id).tengo); refrescar(); },
   'quitar-integrante': (b) => confirmar(b, () => quitarIntegrante(b.dataset.id)),
+  'sumar-mascota': () => {
+    const m = { id: uid(), animal: 'perro', cantidad: 1, edad: '', obs: '' };
+    estado.mascotas.push(m);
+    sincronizarMascotas();
+    guardar();
+    refrescar();
+    vista.querySelector(`[data-mcampo="animal"][data-id="${m.id}"]`)?.focus({ preventScroll: true });
+  },
+  'quitar-mascota': (b) => confirmar(b, () => { estado.mascotas = estado.mascotas.filter((m) => m.id !== b.dataset.id); sincronizarMascotas(); guardar(); refrescar(); }),
   'editar-integrante': (b) => abrirEdicion(b.dataset.id),
   'elegir-integrante': (b) => { familiaSel = b.dataset.id; refrescar(); },
   'ir-cat': (b, e) => { e.preventDefault(); irACat = b.dataset.cat; if (location.hash === '#inventario') render(true); else location.hash = 'inventario'; },
@@ -1110,7 +1281,17 @@ vista.addEventListener('change', (e) => {
     const v = t.value === '' ? null : Math.max(0, Number(t.value));
     estado.inventario[t.dataset.cantidad] = { ...registro(t.dataset.cantidad), cantidad: Number.isFinite(v) ? v : null };
     guardar();
-    if (t.dataset.cantidad === 'agua-litros') { const n = document.getElementById('nota-agua'); if (n) n.textContent = notaAgua(registro('agua-litros')); }
+    actualizarCuenta(t.dataset.cantidad);
+    return;
+  }
+  if (t.dataset.mcampo) {
+    const m = estado.mascotas.find((x) => x.id === t.dataset.id);
+    if (!m) return;
+    const k = t.dataset.mcampo;
+    if (k === 'cantidad') m.cantidad = t.value === '' ? 1 : Math.max(1, Math.min(50, Math.round(Number(t.value) || 1)));
+    else m[k] = k === 'animal' ? t.value : t.value.trim();
+    sincronizarMascotas();
+    guardar();
     return;
   }
   if (t.dataset.vence) { estado.inventario[t.dataset.vence] = { ...registro(t.dataset.vence), vence: t.value || null }; guardar(); refrescar(); return; }
@@ -1130,7 +1311,7 @@ vista.addEventListener('change', (e) => {
     setRuta(estado, t.dataset.campo, v);
     guardar();
     if (t.dataset.campo.startsWith('hogar.')) actualizarLinkDireccion();
-    if (t.type === 'checkbox' || t.type === 'radio') refrescar();
+    if (t.type === 'checkbox' || t.type === 'radio' || t.tagName === 'SELECT') refrescar();
   }
 });
 dialogo.addEventListener('submit', (e) => {

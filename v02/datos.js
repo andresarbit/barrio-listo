@@ -49,47 +49,52 @@ export const CATEGORIAS = [
 
 // Elementos del inventario.
 // unidad: cómo se cuenta. ref: referencia del curso. revisar: cada cuántos meses conviene revisarlo.
-// vence: tiene fecha de vencimiento para anotar. porPersona: se sugiere uno por persona.
+// vence: tiene fecha de vencimiento para anotar.
+// por: cómo se calcula lo que necesitan según quiénes viven en la casa
+//   (persona, agua, raciones, electro, animal, bebe, mascotas, medicacion, dieta).
 // corto: nombre para la grilla de "qué ya tienen". soloSi: aparece solo si el hogar lo necesita.
 // saber: no se cuenta, solo se tilda.
 export const ELEMENTOS = [
-  { id: 'agua-litros', cat: 'agua', nombre: 'Agua potable', corto: 'Agua', unidad: 'L', ref: 'Referencia del curso: 3 litros por persona por día (2 para tomar y cocinar, 1 para higiene). Se rota cada 3 a 6 meses.', revisar: 6, buscar: 'bidon agua 6 litros' },
-  { id: 'agua-cantimploras', cat: 'agua', nombre: 'Botellas o cantimploras', corto: 'Cantimploras', unidad: 'u.', porPersona: true, buscar: 'cantimplora' },
+  { id: 'agua-litros', cat: 'agua', nombre: 'Agua potable', corto: 'Agua', unidad: 'L', por: 'agua', ref: 'Referencia del curso: 3 litros por persona por día (2 para tomar y cocinar, 1 para higiene). Se rota cada 3 a 6 meses.', revisar: 6, buscar: 'bidon agua 6 litros' },
+  { id: 'agua-cantimploras', cat: 'agua', nombre: 'Botellas o cantimploras', corto: 'Cantimploras', unidad: 'u.', por: 'persona', buscar: 'cantimplora' },
   { id: 'agua-lavandina', cat: 'agua', nombre: 'Lavandina apta para desinfectar agua', unidad: 'u.', ref: 'Leer el rótulo: pierde concentración con el tiempo.', vence: true, buscar: 'lavandina apta desinfectar agua' },
   { id: 'agua-pastillas', cat: 'agua', nombre: 'Pastillas potabilizadoras', unidad: 'u.', vence: true, buscar: 'pastillas potabilizadoras' },
   { id: 'agua-filtro', cat: 'agua', nombre: 'Filtro de agua', unidad: 'u.', ref: 'De mesada, bombilla con filtro o casero. Después de filtrar, igual se hierve o se clora.', buscar: 'filtro agua gravedad' },
 
-  { id: 'comida-noperecedera', cat: 'comida', nombre: 'Comida no perecedera', corto: 'Comida no perecedera', unidad: 'u.', ref: 'Latas, legumbres, arroz, fideos. Solo lo que la familia come; se usa primero lo que vence antes.', vence: true, buscar: 'conservas latas' },
+  { id: 'comida-noperecedera', cat: 'comida', nombre: 'Comida no perecedera', corto: 'Comida no perecedera', unidad: 'raciones', por: 'raciones', ref: 'Latas, legumbres, arroz, fideos: solo lo que la familia come. Se cuenta en raciones (un plato para una persona) y se usa primero lo que vence antes.', vence: true, buscar: 'conservas latas' },
   { id: 'comida-secos', cat: 'comida', nombre: 'Frutos secos y fruta deshidratada', unidad: 'u.', vence: true, buscar: 'frutos secos' },
   { id: 'comida-frascos', cat: 'comida', nombre: 'Frascos de vidrio con sello', unidad: 'u.', buscar: 'frascos vidrio hermeticos' },
-  { id: 'comida-bebe', cat: 'comida', nombre: 'Pañales, leche y comida de bebé', unidad: 'u.', vence: true, soloSi: 'bebes', buscar: 'pañales' },
-  { id: 'comida-mascotas', cat: 'comida', nombre: 'Agua y alimento para mascotas', unidad: 'u.', vence: true, soloSi: 'mascotas', buscar: 'alimento mascotas' },
+  { id: 'comida-bebe', cat: 'comida', nombre: 'Pañales, leche y comida de bebé', unidad: 'u.', vence: true, soloSi: 'bebes', por: 'bebe', buscar: 'pañales' },
+  { id: 'comida-dieta', cat: 'comida', nombre: 'Comida apta para dieta especial o celiaquía', unidad: 'raciones', vence: true, soloSi: 'dieta', por: 'dieta', buscar: 'alimentos sin tacc' },
+  { id: 'comida-mascotas', cat: 'comida', nombre: 'Alimento para mascotas', unidad: 'kg', vence: true, soloSi: 'mascotas', por: 'mascotas', buscar: 'alimento mascotas' },
 
   { id: 'botiquin-gasas', cat: 'botiquin', nombre: 'Gasas, apósitos, vendas y cinta', corto: 'Gasas y vendas', unidad: 'u.', buscar: 'gasas vendas botiquin' },
   { id: 'botiquin-antisepticos', cat: 'botiquin', nombre: 'Yodo, solución fisiológica y jabón blanco', unidad: 'u.', vence: true, buscar: 'solucion fisiologica' },
   { id: 'botiquin-proteccion', cat: 'botiquin', nombre: 'Guantes, barbijos y antiparras', unidad: 'u.', buscar: 'guantes descartables' },
   { id: 'botiquin-tijera', cat: 'botiquin', nombre: 'Tijera de punta roma', unidad: 'u.', buscar: 'tijera punta roma trauma' },
-  { id: 'botiquin-manta', cat: 'botiquin', nombre: 'Manta térmica', unidad: 'u.', buscar: 'manta termica emergencia' },
-  { id: 'botiquin-medicacion', cat: 'botiquin', nombre: 'Medicación de reserva', unidad: 'u.', ref: 'De 2 a 4 semanas de la medicación de todos los días.', vence: true, soloSi: 'medicacion', buscar: null },
+  { id: 'botiquin-manta', cat: 'botiquin', nombre: 'Manta térmica', unidad: 'u.', por: 'persona', buscar: 'manta termica emergencia' },
+  { id: 'botiquin-medicacion', cat: 'botiquin', nombre: 'Medicación de reserva', unidad: 'u.', ref: 'De 2 a 4 semanas de la medicación de todos los días.', vence: true, soloSi: 'medicacion', por: 'medicacion', buscar: null },
+  { id: 'botiquin-anteojos', cat: 'botiquin', nombre: 'Anteojos de repuesto y pilas para audífonos', unidad: 'u.', soloSi: 'anteojos', buscar: null },
 
-  { id: 'energia-linternas', cat: 'energia', nombre: 'Linternas', corto: 'Linternas', unidad: 'u.', porPersona: true, buscar: 'linterna led' },
+  { id: 'energia-linternas', cat: 'energia', nombre: 'Linternas', corto: 'Linternas', unidad: 'u.', por: 'persona', buscar: 'linterna led' },
   { id: 'energia-pilas', cat: 'energia', nombre: 'Pilas', corto: 'Pilas', unidad: 'u.', vence: true, buscar: 'pilas aa' },
   { id: 'energia-powerbank', cat: 'energia', nombre: 'Cargador externo (power bank)', corto: 'Cargador externo', unidad: 'u.', ref: 'Se descarga solo con el tiempo: conviene recargarlo cada tanto.', revisar: 3, buscar: 'power bank' },
   { id: 'energia-velas', cat: 'energia', nombre: 'Velas y fósforos', corto: 'Velas y fósforos', unidad: 'u.', buscar: 'velas' },
   { id: 'energia-dinamo', cat: 'energia', nombre: 'Linterna a dínamo', unidad: 'u.', buscar: 'linterna dinamo' },
   { id: 'energia-anafe', cat: 'energia', nombre: 'Anafe de camping con garrafa', unidad: 'u.', ref: 'Para hervir agua si no hay luz ni gas.', buscar: 'anafe camping garrafa' },
-  { id: 'energia-ups', cat: 'energia', nombre: 'UPS para el equipo de la persona electrodependiente', unidad: 'u.', soloSi: 'electro', buscar: 'ups' },
+  { id: 'energia-ups', cat: 'energia', nombre: 'UPS para el equipo de la persona electrodependiente', unidad: 'u.', soloSi: 'electro', por: 'electro', buscar: 'ups' },
 
   { id: 'com-radio', cat: 'comunicacion', nombre: 'Radio AM/FM a pilas', corto: 'Radio a pilas', unidad: 'u.', ref: 'Las radios locales avisan alertas y puntos de ayuda.', buscar: 'radio am fm pilas' },
-  { id: 'com-silbato', cat: 'comunicacion', nombre: 'Silbato', unidad: 'u.', porPersona: true, buscar: 'silbato' },
+  { id: 'com-silbato', cat: 'comunicacion', nombre: 'Silbato', unidad: 'u.', por: 'persona', buscar: 'silbato' },
   { id: 'com-papel', cat: 'comunicacion', nombre: 'Lista de teléfonos en papel', unidad: 'u.', revisar: 3, buscar: null },
 
   { id: 'doc-carpeta', cat: 'documentos', nombre: 'Carpeta hermética con la documentación', corto: 'Carpeta con documentos', unidad: 'u.', ref: 'Documentos, actas, recetas, alergias, grupo y factor de cada uno. En altura y a mano.', revisar: 3, buscar: 'carpeta impermeable documentos' },
   { id: 'doc-digital', cat: 'documentos', nombre: 'Copia digital (pendrive con contraseña o nube)', unidad: 'u.', revisar: 3, buscar: 'pendrive' },
   { id: 'doc-efectivo', cat: 'documentos', nombre: 'Efectivo de reserva', unidad: '$', ref: 'Si no hay luz ni señal, el QR no anda.', buscar: null },
 
-  { id: 'mochila', cat: 'mochilas', nombre: 'Mochilas de escape', corto: 'Mochilas', unidad: 'u.', porPersona: true, ref: 'Una por persona, de no más del 15% del peso de quien la lleva. Una mochila común, nada táctico.', revisar: 3, buscar: 'mochila' },
+  { id: 'mochila', cat: 'mochilas', nombre: 'Mochilas de escape', corto: 'Mochilas', unidad: 'u.', por: 'persona', ref: 'De no más del 15% del peso de quien la lleva. Una mochila común, nada táctico.', revisar: 3, buscar: 'mochila' },
   { id: 'mochila-extras', cat: 'mochilas', nombre: 'Navaja, bolsas gruesas y soga', unidad: 'u.', buscar: 'navaja multiuso' },
+  { id: 'mascotas-transporte', cat: 'mochilas', nombre: 'Correa o transportadora y libreta sanitaria de las mascotas', unidad: 'u.', soloSi: 'mascotas', por: 'animal', buscar: 'transportadora mascotas' },
 
   { id: 'casa-herramientas', cat: 'casa', nombre: 'Caja de herramientas básica', corto: 'Herramientas', unidad: 'u.', ref: 'Pinza, destornillador, martillo.', buscar: 'caja herramientas' },
   { id: 'casa-fluo', cat: 'casa', nombre: 'Pintura fluorescente para señalizar tablero y gas', unidad: 'u.', buscar: 'pintura fluorescente' },
@@ -101,6 +106,22 @@ export const ELEMENTOS = [
   { id: 'saber-encuentro', cat: 'saberes', nombre: 'Tenemos un punto de encuentro acordado.', saber: true },
   { id: 'saber-mochilas', cat: 'saberes', nombre: 'Practicamos salir con las mochilas.', saber: true }
 ];
+
+// Mascotas. agua: litros por día por animal, aproximado (depende del tamaño).
+// transporte: necesita correa o transportadora para salir.
+export const ANIMALES = [
+  { id: 'perro', nombre: 'Perro', plural: 'perros', agua: 1, transporte: true },
+  { id: 'gato', nombre: 'Gato', plural: 'gatos', agua: 0.25, transporte: true },
+  { id: 'ave', nombre: 'Ave', plural: 'aves', agua: 0.05, transporte: true },
+  { id: 'conejo', nombre: 'Conejo', plural: 'conejos', agua: 0.3, transporte: true },
+  { id: 'roedor', nombre: 'Hámster o cobayo', plural: 'hámsters o cobayos', agua: 0.1, transporte: true },
+  { id: 'tortuga', nombre: 'Tortuga', plural: 'tortugas', agua: 0.05, transporte: true },
+  { id: 'pez', nombre: 'Pez', plural: 'peces', agua: 0, transporte: false },
+  { id: 'otro', nombre: 'Otro', plural: 'otros animales', agua: 0.2, transporte: true }
+];
+
+// Para cuántos días se calculan el agua y la comida. Es una referencia para las cuentas, no un plazo.
+export const DIAS_RESERVA = [3, 5, 7, 10, 14];
 
 // La grilla de "qué ya tienen en casa": 4 filas de 3.
 export const INICIALES = [
