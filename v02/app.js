@@ -359,9 +359,9 @@ function verInicio() {
   <section class="panel consola" aria-label="Barrio Listo">
     <div class="consola-tope"><span class="rejilla" aria-hidden="true"></span></div>
     <div class="consola-cuerpo">
-      <div class="pantalla-lcd escena-lcd">
-        <canvas id="barrio" class="escena" width="384" height="144" role="img" aria-label="Pantalla con un barrio pixel de noche, bajo la lluvia, con cuatro vecinos en la vereda."></canvas>
-        <div class="lcd-fila"><span class="lcd-texto">NADIE SE SALVA SOLO</span><span class="lcd-texto">${pct}%</span></div>
+      <div class="pantalla-lcd titulo-lcd">
+        <h1 class="titulo-grande">Barrio<br>Listo</h1>
+        <div class="lcd-fila"><span class="lcd-lema"><span class="parpadeo" aria-hidden="true">▶</span> NADIE SE SALVA SOLO</span><span class="lcd-texto">${pct}%</span></div>
       </div>
       <div class="controles">
         <div class="grupo-corchete">
@@ -908,7 +908,6 @@ const VISTAS = {
   emergencia: verEmergencia, ajustes: verAjustes
 };
 const MONTAR = {
-  inicio: () => { const parar = dibujarBarrio(document.getElementById('barrio')); limpiar.push(parar); },
   checklists: montarChecklists,
   zona: montarZona
 };
