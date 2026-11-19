@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a17">
+  <meta name="description" content="Preparación comunitaria para emergencias: necesidades, familia, listas, compras, plan, mapa y modo emergencia.">
+  <title>Barrio Listo</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="iconos/icono-192.png">
+  <link rel="apple-touch-icon" href="iconos/icono-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Tiny5&display=swap">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="barra">
+    <a href="#inicio" class="marca aberracion">BARRIO LISTO</a>
+    <span class="reloj" id="reloj">72:00 HS</span>
+    <button type="button" class="boton chico" id="instalar" hidden>Instalar</button>
+  </header>
+
+  <main id="vista" tabindex="-1"></main>
+
+  <nav class="navegacion" aria-label="Principal">
+    <a href="#inicio" data-ruta="inicio"><span class="nav-icono">◆</span>Inicio</a>
+    <a href="#checklists" data-ruta="checklists"><span class="nav-icono">✓</span>Listas</a>
+    <a href="#familia" data-ruta="familia"><span class="nav-icono">☺</span>Familia</a>
+    <a href="#plan" data-ruta="plan"><span class="nav-icono">▤</span>Plan</a>
+    <a href="#emergencia" data-ruta="emergencia" class="sos"><span class="nav-icono">✚</span>SOS</a>
+  </nav>
+
+  <div id="linterna" class="linterna" hidden>
+    <p>Linterna encendida. Tocá la pantalla para apagarla.</p>
+  </div>
+
+  <dialog id="dialogo" aria-labelledby="dialogo-titulo"></dialog>
+
+  <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

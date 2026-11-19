@@ -1,0 +1,17 @@
+{
+  "name": "Barrio Listo",
+  "short_name": "Barrio Listo",
+  "description": "Preparación comunitaria para emergencias: necesidades, familia, listas, compras, plan, mapa y modo emergencia.",
+  "lang": "es-AR",
+  "start_url": "./#inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a17",
+  "theme_color": "#0b0a17",
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
